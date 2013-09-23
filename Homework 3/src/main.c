@@ -46,10 +46,13 @@ int tokenize(char *string, char **tokens, int buffersize) {
 int main(int argc, char const *argv[])
 {
 	char *input = malloc(sizeof(char) * INPUT_BUFFERSIZE);
-	char *prompt = malloc(sizeof(char) * PROMPT_BUFFERSIZE);
 	char **tokens = malloc(sizeof(char *) * TOKEN_BUFFERSIZE);
 
-	strncpy(prompt, DEFAULT_PROMPT, PROMPT_BUFFERSIZE);
+	char *prompt = getenv("PS1");
+	if (prompt == NULL) {
+		prompt = malloc(sizeof(char) * PROMPT_BUFFERSIZE);
+		strncpy(prompt, DEFAULT_PROMPT, PROMPT_BUFFERSIZE);
+	}
 
 	while (strcmp(input, EXIT_COMMAND) != 0)
 	{
