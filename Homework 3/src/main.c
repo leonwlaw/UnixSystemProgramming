@@ -20,29 +20,26 @@ char *EXIT_COMMAND = "exit\n";
 // Tokenizes the string as much as the buffer allows.
 // If the buffer size is insufficient to store all the tokens,
 // this function will return 1.
-int tokenize(char *string, char **tokens) {
-	int tokenNumber = 0;
+int tokenize(char *string, char **tokens, int buffersize) {
+	// Make sure we leave space for the terminating NULL.
+	char ** lastElement = tokens + buffersize - 1;
 	char *token;
 	for (token = strtok(string, TOKEN_DELIMITERS);
 		// Last spot in the token buffer is reserved for NULL
-		token != NULL && tokenNumber < TOKEN_BUFFERSIZE - 1;
-		token = strtok(NULL, TOKEN_DELIMITERS), ++tokenNumber)
+		token != NULL && tokens < lastElement;
+		token = strtok(NULL, TOKEN_DELIMITERS), tokens++)
 	{
-		tokens[tokenNumber] = token;
+		*tokens = token;
 	}
-	tokens[tokenNumber + 1] = NULL;
+
+	// Mark the end of the tokens
+	*tokens = NULL;
 
 	// Did we tokenize everything?
-	if (token != NULL)
+	if (token != NULL) {
 		return 1;
-	return 0;
-}
-
-
-void printStrings(char** printStrings) {
-	for (; *printStrings != NULL; ++printStrings) {
-		puts(*printStrings);
 	}
+	return 0;
 }
 
 
@@ -59,8 +56,9 @@ int main(int argc, char const *argv[])
 		fputs(prompt, stdout);
 		fgets(input, INPUT_BUFFERSIZE, stdin);
 
-		if (tokenize(input, tokens) != 0) {
-			fputs("Warning: Not all tokens were tokenized successfully.\n", stderr);
+		if (tokenize(input, tokens, TOKEN_BUFFERSIZE) != 0)
+		{
+			fputs("Not all tokens were tokenized successfully.\n", stderr);
 		}
 	}
 
