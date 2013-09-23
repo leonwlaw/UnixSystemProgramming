@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <wait.h>
 
 // The maximum # of characters the user is allowed to input.
 size_t INPUT_BUFFERSIZE = 0xFFFF;
@@ -43,6 +45,24 @@ int tokenize(char *string, char **tokens, int buffersize) {
 }
 
 
+void nullifyTrailingWhitespace(char *string)
+{
+	char *lastValidChar = string;
+	for (; *string != '\0'; ++string)
+	{
+		if (*string != ' ' && *string != '\t' && *string != '\n')
+		{
+			lastValidChar = string;
+		}
+	}
+
+	for (++lastValidChar; *lastValidChar != '\0'; ++lastValidChar)
+	{
+		*lastValidChar = '\0';
+	}
+}
+
+
 int main(int argc, char const *argv[])
 {
 	char *input = malloc(sizeof(char) * INPUT_BUFFERSIZE);
@@ -59,9 +79,23 @@ int main(int argc, char const *argv[])
 		fputs(prompt, stdout);
 		fgets(input, INPUT_BUFFERSIZE, stdin);
 
+		// Trailing whitespace causes problems with exec...
+		nullifyTrailingWhitespace(input);
+
 		if (tokenize(input, tokens, TOKEN_BUFFERSIZE) != 0)
 		{
 			fputs("Not all tokens were tokenized successfully.\n", stderr);
+		}
+
+		// Run the command and wait for it to complete.
+		int p_id = fork();
+		if (p_id == 0) {
+			execvp(tokens[0], tokens);
+			fprintf(stderr, "%s: command not found\n", tokens[0]);
+		} else {
+			int status;
+			int child_pid = wait(&status);
+			fprintf(stdout, "Child %d exited with status: %d\n", child_pid, status);
 		}
 	}
 
