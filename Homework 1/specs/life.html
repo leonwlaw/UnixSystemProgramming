@@ -1,0 +1,117 @@
+<html>
+<head>
+  <title>CS239 - Homework</title>
+</head>
+<body>
+  <h1>Homework 1: Basic C</h1>
+  <h2>Focus</h2>
+  <ul>
+    <li>C Basics</li>
+    <li>Command line arguments</li>
+    <li>Dynamic memory allocation</li>
+  </ul>
+  <h2>Details</h2>
+  <p>
+    We are going to implment Conway's well known Game of Life.  You
+    can find more than you need to know at,
+    e.g., <a href="http://en.wikipedia.org/wiki/Conway's_Game_of_Life">the
+    Wikipedia entry</a>.  But all you really need is
+    the <a href="http://en.wikipedia.org/wiki/Conway's_Game_of_Life#Rules">rules</a>.
+    For convenience, I will repeat them here:
+    <ul>
+      <li>Any live cell with fewer than two live neighbours dies.
+      <li>Any live cell with two or three live neighbours lives on to the next generation.
+      <li>Any live cell with more than three live neighbours dies.
+      <li>Any dead cell with exactly three live neighbours becomes a live cell.
+    </ul>
+  <p>
+    So what other details are there?
+    <ul>
+      <li>
+        Our program will read in a file depicting an initial
+        configuration for the world.  By default, the file's name will
+        be "life.txt".  A different file name may be specified by the
+        user on the command line.
+      <li>
+        The program will generate and display a "world" based on the
+        input file.  The actual number of rows and columns in the
+        world may be different than what is in the file.  Default
+        values for both the number of rows and the number of columns
+        will be 10.  Again, different values can be provided on the
+        command line.
+
+        If there are fewer lines in the file or lines are shorter
+        than expected, the missing "cells" will be assumed to be
+        dead.
+      </li>
+      <li>
+        After displaying the initial state, the program will proceed
+        to calculate some number of additional generations, displaying
+        each in turn.  The number of generations will be 10 by
+        default, but a different value may be provided on the command
+        line.
+      <li>
+        The program is run from the command line as follows:
+        <blockquote>
+          <code>life rows columns filename generations</code>
+        </blockquote>
+        Note that all values are optional, so the program might be run as:
+        <ul>
+          <li><code>life</code>
+          <li><code>life rows columns</code>
+          <li><code>life rows columns filename</code>
+          <li><code>life rows columns filename generations</code>
+        </ul>
+        where rows, columns and generations are all numbers for the
+        specified values to override the defaulst and filename is similarly the
+        name of a file to use instead of life.txt.
+      <li>
+        An example input file is this <a href="life.txt">life.txt</a>
+        and the corresponding output that would display on the
+        console, assuming we used the defaults, is in the file
+        <a href="output.txt">output.txt</a>.
+    </ul>
+  </p>
+  <h2>General Homework Requirements</h2>
+  <ul>
+    <li>Provide <em>reasonable</em> comments.
+    <li>Use <em>good</em> names for everything (functions, variables, etc.)
+    <li>Make <em>good</em> use of functions.
+    <li>
+      Be sure to <em>explicitly</em> free up any resources that you
+      allocate.
+    <li>Do not use globals for anything except constants.
+    <li>If you are not sure what any of the above means, ask in class.
+  </ul>
+  <h2>Additional Requirements</h2>
+  <ul>
+    <li>
+      Do <em>not</em> use local arrays to represent the world.  Use
+      the heap instead.
+  </ul>
+  <h2>Suggestion</h2>
+  <p>
+  It will make your life easier if your program creates an extra row
+  at the top and bottom and an extra column to the left and the right,
+  with all of the extra cells marked as dead.  This hack can save you
+  having to worry about edges or corners.
+  </p>
+
+  <h2>Submit</h2>
+  <ul>
+    <li>Submit your files in a zip file called hw01.zip
+    <li>Include a single C source file with your solution.
+    <li>Include a make file
+    <li>
+      If there is anything we should know about your code (e.g. it
+      doesn't work...), include a README file.  Or just include one if
+      you like writing something about your program.
+  </ul>
+  <h2>Questions?</h2>
+  <p>
+    If you have any questions about the spec, please ask during class,
+    come by the office or post on the discussion board.
+<hr>
+Maintained by <a href="mailto:jsterling@poly.edu">John Sterling</a>.
+</body>
+</html>

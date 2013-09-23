@@ -1,0 +1,45 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- saved from url=(0162)https://blackboard.poly.edu/bbcswebdav/pid-475378-dt-content-rid-1301640_1/courses/Fall1134.CS239.1895/Fall1134.CS239.1895_ImportedContent_20130822062801/env.html -->
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<title>CS 239 — Unix Systems Programming</title>
+<style type="text/css"></style></head>
+
+<body>
+<h1 align="center">CS 239 — Unix Systems Programming</h1>
+<h2>Homework 2</h2>
+<h3>Focus: </h3>
+<ul>
+  <li>Process environment</li>
+  <li>Memory management</li>
+</ul>
+<h3>Task:</h3>
+<p>Implement the utility env.</p>
+<ul>
+  <li>When issued without arguments, it simply displays the environment.</li>
+  <li>When issued with arguments, the pattern is:
+    <ul>
+      <li>env [-i] [name=value]... [command [argument]...]</li>
+      <li>The purpose of env with options is to execute a command with a modified environment. The command being run can have its own arguments.</li>
+      <li>If the -i option is used, then the name/value pairs that are provided, completely replace the environment when running the command.</li>
+      <li>If the -i option is not provided, then the name/value pairs <em>modify</em> the environment.</li>
+      <li>If no command is provided then env simply displays the new / modified environment.</li>
+    </ul>
+  </li>
+</ul>
+<h3>Constraints:</h3>
+<p>What would life be without annoying constraints? The ones for this assignment are:</p>
+<ul>
+  <li>Do not use getenv, putenv or setenv. Deal with the char** environ variable itself.</li>
+</ul>
+<h3>Turn in:</h3>
+<p>Submit your solution on Blackboard as hw02.c</p>
+<p><a href="http://cis.poly.edu/jsterling/cs239">Home</a></p>
+<hr>
+<p><i>Maintained by <a href="http://cis.poly.edu/jsterling">John Sterling</a> (<a href="mailto:jsterling@poly.edu">jsterling@poly.edu</a>). </i><i>Last updated
+  <!-- #BeginDate format:Am1 -->February 21, 2011<!-- #EndDate -->
+</i></p>
+<p></p>
+
+
+</body></html>
