@@ -71,10 +71,33 @@ void nullifyTrailingWhitespace(char *string)
 }
 
 
-int parseArgumentsIORedirection(char **tokens, char **arguments) {
+// Returns 1 if failed to redirect stdin.
+int doRedirects(char **tokens, char **arguments) {
 	for (; *tokens != NULL; ++tokens) {
-		*arguments = *tokens;
-		++arguments;
+		// Is this a redirect request?
+		char *redirectSymbol = strchr(*tokens, '<');
+
+		if (redirectSymbol != NULL) {
+			if (strncmp(redirectSymbol, "<", 1) == 0) {
+				// Redirect stdin
+				// The filename is contained in the next token.
+				++tokens;
+				char *filename = *tokens;
+
+				// Swap stdin
+				if (fclose(stdin) == -1) {
+					perror("stdin");
+					return 1;
+				}
+				if ((stdin = fopen(filename, "r")) == NULL) {
+					perror(filename);
+					return 1;
+				}
+			}
+		} else {
+			*arguments = *tokens;
+			++arguments;
+		}
 	}
 	return 0;
 }
@@ -109,14 +132,7 @@ int main(int argc, char const *argv[])
 			doFork = 0;
 		}
 
-		char **arguments = calloc(sizeof(char *), stringArraySize(arguments));
-
-		if (parseArgumentsIORedirection(tokens, arguments) != 0) {
-			fputs("There was an error parsing the arguments.\n", stderr);
-			doFork = 0;
-		}
-
-		if (strcmp(arguments[0], EXIT_COMMAND) == 0) {
+		if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
 			exit(0);
 		}
 
@@ -124,15 +140,22 @@ int main(int argc, char const *argv[])
 			// Run the command and wait for it to complete.
 			int p_id = fork();
 			if (p_id == 0) {
+				char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
+
+				if (doRedirects(tokens, arguments) != 0) {
+					fputs("There was an error parsing the arguments.\n", stderr);
+				}
+
 				execvp(arguments[0], arguments);
 				perror(argv[0]);
+				
+				free(arguments);
 				exit(1);
 			} else {
 				wait(NULL);
 			}
 		}
 
-		free(arguments);
 	}
 
 	free(input);
