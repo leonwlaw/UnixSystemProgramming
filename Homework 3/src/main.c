@@ -16,7 +16,7 @@ size_t TOKEN_BUFFERSIZE = 0xFFF;
 char *TOKEN_DELIMITERS = " ";
 
 char *DEFAULT_PROMPT = "> ";
-char *EXIT_COMMAND = "exit\n";
+char *EXIT_COMMAND = "exit";
 
 
 // Tokenizes the string as much as the buffer allows.
@@ -74,7 +74,9 @@ int main(int argc, char const *argv[])
 		strncpy(prompt, DEFAULT_PROMPT, PROMPT_BUFFERSIZE);
 	}
 
-	while (strcmp(input, EXIT_COMMAND) != 0)
+	// We should keep the user in the loop until they type the
+	// exit command.
+	while (1)
 	{
 		fputs(prompt, stdout);
 		fgets(input, INPUT_BUFFERSIZE, stdin);
@@ -87,15 +89,17 @@ int main(int argc, char const *argv[])
 			fputs("Not all tokens were tokenized successfully.\n", stderr);
 		}
 
+    if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
+			exit(0);
+		}
 		// Run the command and wait for it to complete.
 		int p_id = fork();
 		if (p_id == 0) {
 			execvp(tokens[0], tokens);
 			fprintf(stderr, "%s: command not found\n", tokens[0]);
+			exit(1);
 		} else {
-			int status;
-			int child_pid = wait(&status);
-			fprintf(stdout, "Child %d exited with status: %d\n", child_pid, status);
+			wait(NULL);
 		}
 	}
 
@@ -103,3 +107,4 @@ int main(int argc, char const *argv[])
 	free(prompt);
 	return 0;
 }
+
