@@ -96,7 +96,7 @@ int main(int argc, char const *argv[])
 		int p_id = fork();
 		if (p_id == 0) {
 			execvp(tokens[0], tokens);
-			fprintf(stderr, "%s: command not found\n", tokens[0]);
+			perror(argv[0]);
 			exit(1);
 		} else {
 			wait(NULL);
