@@ -19,6 +19,14 @@ char *DEFAULT_PROMPT = "> ";
 char *EXIT_COMMAND = "exit";
 
 
+int stringArraySize(char ** array) {
+	size_t size = 0;
+	for (; *array != NULL; ++size, ++array)
+		; // NULL
+	return size;
+}
+
+
 // Tokenizes the string as much as the buffer allows.
 // If the buffer size is insufficient to store all the tokens,
 // this function will return 1.
@@ -63,6 +71,15 @@ void nullifyTrailingWhitespace(char *string)
 }
 
 
+int parseArgumentsIORedirection(char **tokens, char **arguments) {
+	for (; *tokens != NULL; ++tokens) {
+		*arguments = *tokens;
+		++arguments;
+	}
+	return 0;
+}
+
+
 int main(int argc, char const *argv[])
 {
 	char *input = malloc(sizeof(char) * INPUT_BUFFERSIZE);
@@ -78,6 +95,8 @@ int main(int argc, char const *argv[])
 	// exit command.
 	while (1)
 	{
+		int doFork = 1;
+
 		fputs(prompt, stdout);
 		fgets(input, INPUT_BUFFERSIZE, stdin);
 
@@ -87,20 +106,33 @@ int main(int argc, char const *argv[])
 		if (tokenize(input, tokens, TOKEN_BUFFERSIZE) != 0)
 		{
 			fputs("Not all tokens were tokenized successfully.\n", stderr);
+			doFork = 0;
 		}
 
-    if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
+		char **arguments = calloc(sizeof(char *), stringArraySize(arguments));
+
+		if (parseArgumentsIORedirection(tokens, arguments) != 0) {
+			fputs("There was an error parsing the arguments.\n", stderr);
+			doFork = 0;
+		}
+
+		if (strcmp(arguments[0], EXIT_COMMAND) == 0) {
 			exit(0);
 		}
-		// Run the command and wait for it to complete.
-		int p_id = fork();
-		if (p_id == 0) {
-			execvp(tokens[0], tokens);
-			perror(argv[0]);
-			exit(1);
-		} else {
-			wait(NULL);
+
+		if (doFork) {
+			// Run the command and wait for it to complete.
+			int p_id = fork();
+			if (p_id == 0) {
+				execvp(arguments[0], arguments);
+				perror(argv[0]);
+				exit(1);
+			} else {
+				wait(NULL);
+			}
 		}
+
+		free(arguments);
 	}
 
 	free(input);
