@@ -13,3 +13,4 @@ What doesn't work:
 Misc stuff that wasn't in the spec:
  - supershell can take redirected input! (checks if fgets returns anything)
  - Automated(-ish) testing via 'make test'
+ - Hitting enter when nothing is typed do not cause errors to occur

@@ -1,8 +1,8 @@
 all: src/main.c
-	gcc -Wall -std=c99 src/main.c -o supershell
+	gcc -Wall -std=c99 main.c -o supershell
 
 debug: src/main.c
-	gcc -Wall -std=c99 -g src/main.c -o supershell
+	gcc -Wall -std=c99 -g main.c -o supershell
 
 test: all
 	@echo "-----------------------------"
