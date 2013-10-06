@@ -1,3 +1,2 @@
-cat ./tests/test_redirect_stdout > redirect_output
+cat ./tests/fruits > redirect_output
 cat redirect_output
-exit

@@ -1,0 +1,2 @@
+cat < ./tests/fruits > redirect_mix
+cat redirect_mix

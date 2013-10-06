@@ -22,5 +22,9 @@ test: all
 	      ./supershell < ./tests/test_redirect_stdout
 	@echo
 	@echo "-----------------------------"
+	@echo "Testing redirecting both stdin and stdout..."
+	      ./supershell < ./tests/test_redirect_mix
+	@echo
+	@echo "-----------------------------"
 	@echo "Testing complete."
 	@echo

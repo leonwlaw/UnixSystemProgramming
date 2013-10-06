@@ -1,2 +1,1 @@
-cat < ./tests/test_redirect_stdin
-exit
+cat < ./tests/fruits
