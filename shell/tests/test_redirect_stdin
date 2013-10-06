@@ -1,0 +1,2 @@
+cat < ./tests/test_redirect_stdin
+exit

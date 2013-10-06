@@ -7,11 +7,15 @@ debug: src/main.c
 test: all
 	@echo "-----------------------------"
 	@echo "Testing exit..."
-	./supershell < ./tests/test_exit
+	      ./supershell < ./tests/test_exit
 	@echo
 	@echo "-----------------------------"
 	@echo "Testing ls..."
-	./supershell < ./tests/test_ls
+	      ./supershell < ./tests/test_ls
+	@echo
+	@echo "-----------------------------"
+	@echo "Testing redirecting stdin..."
+	      ./supershell < ./tests/test_redirect_stdin
 	@echo
 	@echo "-----------------------------"
 	@echo "Testing complete."
