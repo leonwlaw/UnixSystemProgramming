@@ -35,7 +35,7 @@ int tokenize(char *string, char **tokens, int buffersize);
 // Returns 1 if failed to redirect stdin.
 int doRedirects(char **tokens, char **arguments);
 
-
+void nullifyTrailingWhitespace(char *string);
 /* ----------------------------------------------
 Main
 -----------------------------------------------*/
@@ -106,40 +106,35 @@ Function definitions
 -----------------------------------------------*/
 
 int doRedirects(char **tokens, char **arguments) {
+	char noMoreRedirects = '\0';
+
+	char redirectChar[] = {'<', '>', noMoreRedirects};
+	FILE *redirectFile[] = {stdin, stdout, NULL};
+	char *redirectFileMode[] = {"r", "w", ""};
+
 	for (; *tokens != NULL; ++tokens) {
-		// Is this a redirect request? Search for the first occurence of
-		// either '<' or '>'
-		char *redirectSymbol = strchr(*tokens, '<');
-		redirectSymbol = (redirectSymbol != NULL)? redirectSymbol :
-			strchr(*tokens, '>');
-
-		if (redirectSymbol != NULL) {
-			// The filename is contained in the next token.
-			++tokens;
-			char *filename = *tokens;
-
-			if (strncmp(redirectSymbol, "<", 1) == 0) {
-				// Redirect stdin
-				if (fclose(stdin) == -1) {
-					perror("stdin");
+		int redirected = 0;
+		// Try to see if there are any redirect characters that match.
+		for (int i = 0; *(redirectChar + i) != noMoreRedirects; ++i) {
+			redirected = strchr(*tokens, redirectChar[i]) != 0;
+			if (redirected) {
+				// The filename is contained in the next token.
+				++tokens;
+				char *filename = *tokens;	
+				if (fclose(redirectFile[i]) == -1) {
+					perror("I/O redirection");
 					return 1;
 				}
-				if ((stdin = fopen(filename, "r")) == NULL) {
-					perror(filename);
+				if ((stdin = fopen(filename, redirectFileMode[i])) == NULL) {
+					perror("I/O redirection");
 					return 1;
 				}
-			} else if (strncmp(redirectSymbol, ">", 1) == 0) {
-				// Redirect stdout
-				if (fclose(stdout) == -1) {
-					perror("stdout");
-					return 1;
-				}
-				if ((stdout = fopen(filename, "w")) == NULL) {
-					perror(filename);
-					return 1;
-				}
+				// There's no point in looking for more, if this one matches.
+				break;
 			}
-		} else {
+		}
+
+		if (!redirected) {
 			*arguments = *tokens;
 			++arguments;
 		}
@@ -175,3 +170,22 @@ int tokenize(char *string, char **tokens, int buffersize) {
 	}
 	return 0;
 }
+
+
+void nullifyTrailingWhitespace(char *string)
+{
+	char *lastValidChar = string;
+	for (; *string != '\0'; ++string)
+	{
+		if (*string != ' ' && *string != '\t' && *string != '\n')
+		{
+			lastValidChar = string;
+		}
+	}
+
+	for (++lastValidChar; *lastValidChar != '\0'; ++lastValidChar)
+	{
+		*lastValidChar = '\0';
+	}
+}
+
