@@ -148,6 +148,8 @@ int main(int argc, char const *argv[])
 			exit(0);
 		}
 
+		// Is there even a command to run?
+		doFork &= strncmp(tokens[0], "\n", 1) != 0;
 		if (doFork) {
 			// Run the command and wait for it to complete.
 			int p_id = fork();
