@@ -77,10 +77,10 @@ int doRedirects(char **tokens, char **arguments) {
 		// Is this a redirect request? Search for the first occurence of
 		// either '<' or '>'
 		char *redirectSymbol = strchr(*tokens, '<');
-		redirectSymbol = (redirectSymbol == NULL)? strchr(*tokens, '>'): NULL;
+		redirectSymbol = (redirectSymbol != NULL)? redirectSymbol :
+			strchr(*tokens, '>');
 
 		if (redirectSymbol != NULL) {
-			fputs(redirectSymbol, stderr);
 			// The filename is contained in the next token.
 			++tokens;
 			char *filename = *tokens;
