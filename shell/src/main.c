@@ -4,6 +4,10 @@
 #include <unistd.h>
 #include <wait.h>
 
+/* ----------------------------------------------
+Constants
+-----------------------------------------------*/
+
 // The maximum # of characters the user is allowed to input.
 size_t INPUT_BUFFERSIZE = 0xFFFF;
 
@@ -18,7 +22,9 @@ char *TOKEN_DELIMITERS = " ";
 char *DEFAULT_PROMPT = "> ";
 char *EXIT_COMMAND = "exit";
 
-
+/* ----------------------------------------------
+Function prototypes 
+-----------------------------------------------*/
 int stringArraySize(char **array);
 
 // Tokenizes the string as much as the buffer allows.
@@ -29,6 +35,10 @@ int tokenize(char *string, char **tokens, int buffersize);
 // Returns 1 if failed to redirect stdin.
 int doRedirects(char **tokens, char **arguments);
 
+
+/* ----------------------------------------------
+Main
+-----------------------------------------------*/
 int main(int argc, char const *argv[])
 {
 	char *input = malloc(sizeof(char) * INPUT_BUFFERSIZE);
@@ -90,6 +100,10 @@ int main(int argc, char const *argv[])
 	free(prompt);
 	return 0;
 }
+
+/* ----------------------------------------------
+Function definitions
+-----------------------------------------------*/
 
 int doRedirects(char **tokens, char **arguments) {
 	for (; *tokens != NULL; ++tokens) {
