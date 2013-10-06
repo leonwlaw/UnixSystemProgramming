@@ -92,14 +92,18 @@ int main(int argc, char const *argv[])
     if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
 			exit(0);
 		}
-		// Run the command and wait for it to complete.
-		int p_id = fork();
-		if (p_id == 0) {
-			execvp(tokens[0], tokens);
-			perror(argv[0]);
-			exit(1);
-		} else {
-			wait(NULL);
+
+		// Is there even a command to run?
+		if (strncmp(tokens[0], "\n", 1) != 0) {
+			// Run the command and wait for it to complete.
+			int p_id = fork();
+			if (p_id == 0) {
+				execvp(tokens[0], tokens);
+				perror(argv[0]);
+				exit(1);
+			} else {
+				wait(NULL);
+			}
 		}
 	}
 
