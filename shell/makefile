@@ -18,5 +18,9 @@ test: all
 	      ./supershell < ./tests/test_redirect_stdin
 	@echo
 	@echo "-----------------------------"
+	@echo "Testing redirecting stdout..."
+	      ./supershell < ./tests/test_redirect_stdout
+	@echo
+	@echo "-----------------------------"
 	@echo "Testing complete."
 	@echo

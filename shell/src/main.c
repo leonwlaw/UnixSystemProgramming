@@ -74,22 +74,34 @@ void nullifyTrailingWhitespace(char *string)
 // Returns 1 if failed to redirect stdin.
 int doRedirects(char **tokens, char **arguments) {
 	for (; *tokens != NULL; ++tokens) {
-		// Is this a redirect request?
+		// Is this a redirect request? Search for the first occurence of
+		// either '<' or '>'
 		char *redirectSymbol = strchr(*tokens, '<');
+		redirectSymbol = (redirectSymbol == NULL)? strchr(*tokens, '>'): NULL;
 
 		if (redirectSymbol != NULL) {
+			fputs(redirectSymbol, stderr);
+			// The filename is contained in the next token.
+			++tokens;
+			char *filename = *tokens;
+
 			if (strncmp(redirectSymbol, "<", 1) == 0) {
 				// Redirect stdin
-				// The filename is contained in the next token.
-				++tokens;
-				char *filename = *tokens;
-
-				// Swap stdin
 				if (fclose(stdin) == -1) {
 					perror("stdin");
 					return 1;
 				}
 				if ((stdin = fopen(filename, "r")) == NULL) {
+					perror(filename);
+					return 1;
+				}
+			} else if (strncmp(redirectSymbol, ">", 1) == 0) {
+				// Redirect stdout
+				if (fclose(stdout) == -1) {
+					perror("stdout");
+					return 1;
+				}
+				if ((stdout = fopen(filename, "w")) == NULL) {
 					perror(filename);
 					return 1;
 				}
