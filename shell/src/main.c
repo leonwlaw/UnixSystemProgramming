@@ -128,7 +128,7 @@ int doRedirects(char **tokens, char **arguments) {
 					perror("I/O redirection");
 					return 1;
 				}
-				if ((stdin = fopen(filename, redirectFileMode[i])) == NULL) {
+				if ((redirectFile[i] = fopen(filename, redirectFileMode[i])) == NULL) {
 					perror("I/O redirection");
 					return 1;
 				}

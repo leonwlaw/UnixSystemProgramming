@@ -18,6 +18,10 @@ test: all
 	      ./supershell < ./tests/test_redirect_stdin
 	@echo
 	@echo "-----------------------------"
+	@echo "Testing redirecting stdin multiple times..."
+	      ./supershell < ./tests/test_redirectmultiple_stdin
+	@echo
+	@echo "-----------------------------"
 	@echo "Testing redirecting stdout..."
 	      ./supershell < ./tests/test_redirect_stdout
 	@echo
