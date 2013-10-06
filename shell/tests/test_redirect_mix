@@ -1,2 +1,2 @@
-cat < ./tests/fruits > redirect_mix
-cat redirect_mix
+cat < ./tests/fruits > output_redirect_mix
+cat output_redirect_mix

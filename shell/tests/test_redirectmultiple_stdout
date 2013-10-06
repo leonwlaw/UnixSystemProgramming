@@ -1,0 +1,7 @@
+cat ./test/fruits > ./output_empty > ./output_fruits
+echo This should be empty:
+cat ./output_empty
+echo This should not be empty:
+cat ./output_fruits
+
+

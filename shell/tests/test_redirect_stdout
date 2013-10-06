@@ -1,2 +1,2 @@
-cat ./tests/fruits > redirect_output
-cat redirect_output
+cat ./tests/fruits > output_redirect_stdout
+cat output_redirect_stdout
