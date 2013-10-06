@@ -19,101 +19,15 @@ char *DEFAULT_PROMPT = "> ";
 char *EXIT_COMMAND = "exit";
 
 
-int stringArraySize(char ** array) {
-	size_t size = 0;
-	for (; *array != NULL; ++size, ++array)
-		; // NULL
-	return size;
-}
-
+int stringArraySize(char **array);
 
 // Tokenizes the string as much as the buffer allows.
 // If the buffer size is insufficient to store all the tokens,
 // this function will return 1.
-int tokenize(char *string, char **tokens, int buffersize) {
-	// Make sure we leave space for the terminating NULL.
-	char ** lastElement = tokens + buffersize - 1;
-	char *token;
-	for (token = strtok(string, TOKEN_DELIMITERS);
-		// Last spot in the token buffer is reserved for NULL
-		token != NULL && tokens < lastElement;
-		token = strtok(NULL, TOKEN_DELIMITERS), tokens++)
-	{
-		*tokens = token;
-	}
-
-	// Mark the end of the tokens
-	*tokens = NULL;
-
-	// Did we tokenize everything?
-	if (token != NULL) {
-		return 1;
-	}
-	return 0;
-}
-
-
-void nullifyTrailingWhitespace(char *string)
-{
-	char *lastValidChar = string;
-	for (; *string != '\0'; ++string)
-	{
-		if (*string != ' ' && *string != '\t' && *string != '\n')
-		{
-			lastValidChar = string;
-		}
-	}
-
-	for (++lastValidChar; *lastValidChar != '\0'; ++lastValidChar)
-	{
-		*lastValidChar = '\0';
-	}
-}
-
+int tokenize(char *string, char **tokens, int buffersize);
 
 // Returns 1 if failed to redirect stdin.
-int doRedirects(char **tokens, char **arguments) {
-	for (; *tokens != NULL; ++tokens) {
-		// Is this a redirect request? Search for the first occurence of
-		// either '<' or '>'
-		char *redirectSymbol = strchr(*tokens, '<');
-		redirectSymbol = (redirectSymbol != NULL)? redirectSymbol :
-			strchr(*tokens, '>');
-
-		if (redirectSymbol != NULL) {
-			// The filename is contained in the next token.
-			++tokens;
-			char *filename = *tokens;
-
-			if (strncmp(redirectSymbol, "<", 1) == 0) {
-				// Redirect stdin
-				if (fclose(stdin) == -1) {
-					perror("stdin");
-					return 1;
-				}
-				if ((stdin = fopen(filename, "r")) == NULL) {
-					perror(filename);
-					return 1;
-				}
-			} else if (strncmp(redirectSymbol, ">", 1) == 0) {
-				// Redirect stdout
-				if (fclose(stdout) == -1) {
-					perror("stdout");
-					return 1;
-				}
-				if ((stdout = fopen(filename, "w")) == NULL) {
-					perror(filename);
-					return 1;
-				}
-			}
-		} else {
-			*arguments = *tokens;
-			++arguments;
-		}
-	}
-	return 0;
-}
-
+int doRedirects(char **tokens, char **arguments);
 
 int main(int argc, char const *argv[])
 {
@@ -177,3 +91,73 @@ int main(int argc, char const *argv[])
 	return 0;
 }
 
+int doRedirects(char **tokens, char **arguments) {
+	for (; *tokens != NULL; ++tokens) {
+		// Is this a redirect request? Search for the first occurence of
+		// either '<' or '>'
+		char *redirectSymbol = strchr(*tokens, '<');
+		redirectSymbol = (redirectSymbol != NULL)? redirectSymbol :
+			strchr(*tokens, '>');
+
+		if (redirectSymbol != NULL) {
+			// The filename is contained in the next token.
+			++tokens;
+			char *filename = *tokens;
+
+			if (strncmp(redirectSymbol, "<", 1) == 0) {
+				// Redirect stdin
+				if (fclose(stdin) == -1) {
+					perror("stdin");
+					return 1;
+				}
+				if ((stdin = fopen(filename, "r")) == NULL) {
+					perror(filename);
+					return 1;
+				}
+			} else if (strncmp(redirectSymbol, ">", 1) == 0) {
+				// Redirect stdout
+				if (fclose(stdout) == -1) {
+					perror("stdout");
+					return 1;
+				}
+				if ((stdout = fopen(filename, "w")) == NULL) {
+					perror(filename);
+					return 1;
+				}
+			}
+		} else {
+			*arguments = *tokens;
+			++arguments;
+		}
+	}
+	return 0;
+}
+
+int stringArraySize(char **array) {
+	size_t size = 0;
+	for (; *array != NULL; ++size, ++array)
+		; // NULL
+	return size;
+}
+
+int tokenize(char *string, char **tokens, int buffersize) {
+	// Make sure we leave space for the terminating NULL.
+	char ** lastElement = tokens + buffersize - 1;
+	char *token;
+	for (token = strtok(string, TOKEN_DELIMITERS);
+		// Last spot in the token buffer is reserved for NULL
+		token != NULL && tokens < lastElement;
+		token = strtok(NULL, TOKEN_DELIMITERS), tokens++)
+	{
+		*tokens = token;
+	}
+
+	// Mark the end of the tokens
+	*tokens = NULL;
+
+	// Did we tokenize everything?
+	if (token != NULL) {
+		return 1;
+	}
+	return 0;
+}
