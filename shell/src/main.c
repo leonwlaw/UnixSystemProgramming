@@ -79,7 +79,10 @@ int main(int argc, char const *argv[])
 	while (1)
 	{
 		fputs(prompt, stdout);
-		fgets(input, INPUT_BUFFERSIZE, stdin);
+		if (fgets(input, INPUT_BUFFERSIZE, stdin) == 0) {
+			// No more to read...
+			exit(0);
+		}
 
 		// Trailing whitespace causes problems with exec...
 		nullifyTrailingWhitespace(input);
