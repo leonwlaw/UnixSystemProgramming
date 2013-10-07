@@ -50,6 +50,10 @@ int main(int argc, char const *argv[])
 		strncpy(prompt, DEFAULT_PROMPT, PROMPT_BUFFERSIZE);
 	}
 
+	if (input == NULL || tokens == NULL || prompt == NULL) {
+		fputs("Not enough memory.", stderr);
+	}
+
 	// We should keep the user in the loop until they type the
 	// exit command.
 	while (1)
@@ -83,15 +87,19 @@ int main(int argc, char const *argv[])
 			if (p_id == 0) {
 				char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
 
-				if (doRedirects(tokens, arguments) != 0) {
-					fputs("There was an error parsing the arguments.\n", stderr);
-				}
+				if (arguments == NULL) {
+					fputs("Could not allocate space for arguments...", stderr);
+				} else {
+					if (doRedirects(tokens, arguments) != 0) {
+						fputs("There was an error parsing the arguments.\n", stderr);
+					}
 
-				execvp(arguments[0], arguments);
-				perror(argv[0]);
-				
-				free(arguments);
-				exit(1);
+					execvp(arguments[0], arguments);
+					perror(argv[0]);
+					
+					free(arguments);
+					exit(1);
+				}
 			} else {
 				wait(NULL);
 			}
