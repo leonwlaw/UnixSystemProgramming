@@ -25,9 +25,13 @@ char *TOKEN_DELIMITERS = " ";
 char *DEFAULT_PROMPT = "> ";
 char *EXIT_COMMAND = "exit";
 
+int NOT_ENOUGH_MEMORY = 1;
+int EXEC_FAILED = 2;
+
 /* ----------------------------------------------
 Function prototypes 
 -----------------------------------------------*/
+// Calculates the length of the string array.
 int stringArraySize(char **array);
 
 // Tokenizes the string as much as the buffer allows.
@@ -38,6 +42,8 @@ int tokenize(char *string, char **tokens, int buffersize);
 // Returns 1 if failed to redirect stdin.
 int doRedirects(char **tokens, char **arguments);
 
+// Finds the last non-whitespace character in the string and replaces
+// it with a null.
 void nullifyTrailingWhitespace(char *string);
 /* ----------------------------------------------
 Main
@@ -47,14 +53,19 @@ int main(int argc, char const *argv[])
 	char *input = malloc(sizeof(char) * INPUT_BUFFERSIZE);
 	char **tokens = malloc(sizeof(char *) * TOKEN_BUFFERSIZE);
 
+	if (input == NULL || tokens == NULL) {
+		fputs("Not enough memory.", stderr);
+		exit(NOT_ENOUGH_MEMORY);
+	}
+
 	char *prompt = getenv("PS1");
 	if (prompt == NULL) {
 		prompt = malloc(sizeof(char) * PROMPT_BUFFERSIZE);
+		if (prompt == NULL) {
+			fputs("Not enough memory.", stderr);
+			exit(NOT_ENOUGH_MEMORY);
+		}
 		strncpy(prompt, DEFAULT_PROMPT, PROMPT_BUFFERSIZE);
-	}
-
-	if (input == NULL || tokens == NULL || prompt == NULL) {
-		fputs("Not enough memory.", stderr);
 	}
 
 	// We should keep the user in the loop until they type the
@@ -101,7 +112,7 @@ int main(int argc, char const *argv[])
 					perror(argv[0]);
 					
 					free(arguments);
-					exit(1);
+					exit(EXEC_FAILED);
 				}
 			} else {
 				wait(NULL);
