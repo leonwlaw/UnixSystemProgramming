@@ -3,6 +3,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <wait.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 /* ----------------------------------------------
 Constants
@@ -120,23 +123,33 @@ int doRedirects(char **tokens, char **arguments) {
 	char noMoreRedirects = '\0';
 
 	char redirectChar[] = {'<', '>', noMoreRedirects};
-	FILE *redirectFile[] = {stdin, stdout, NULL};
-	char *redirectFileMode[] = {"r", "w", ""};
+	int redirectFileMode[] = {
+		O_RDONLY,
+		O_WRONLY | O_CREAT | O_TRUNC,
+		0
+	};
+
+	int redirectFilePermission[] = {
+		0,
+		// Assume that the output file is not an executable...
+		0666,
+		0
+	};
 
 	for (; *tokens != NULL; ++tokens) {
 		int redirected = 0;
 		// Try to see if there are any redirect characters that match.
-		for (int i = 0; *(redirectChar + i) != noMoreRedirects; ++i) {
-			redirected = strchr(*tokens, redirectChar[i]) != 0;
+		for (int fd = 0; *(redirectChar + fd) != noMoreRedirects; ++fd) {
+			redirected = strchr(*tokens, redirectChar[fd]) != 0;
 			if (redirected) {
 				// The filename is contained in the next token.
 				++tokens;
 				char *filename = *tokens;	
-				if (fclose(redirectFile[i]) == -1) {
+				if (close(fd) == -1) {
 					perror("I/O redirection");
 					return 1;
 				}
-				if ((redirectFile[i] = fopen(filename, redirectFileMode[i])) == NULL) {
+				if (open(filename, redirectFileMode[fd], redirectFilePermission[fd]) == -1) {
 					perror("I/O redirection");
 					return 1;
 				}

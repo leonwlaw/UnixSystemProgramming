@@ -1,10 +1,10 @@
-all: src/main.c
+all:
 	gcc -Wall -std=c99 main.c -o supershell
 
-debug: src/main.c
+debug:
 	gcc -Wall -std=c99 -g main.c -o supershell
 
-test: all
+test:
 	@echo "-----------------------------"
 	@echo "Testing exit..."
 	      ./supershell < ./tests/test_exit
