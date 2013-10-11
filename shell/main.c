@@ -59,6 +59,15 @@ int doRedirects(char **tokens, char **arguments);
 // Performs any I/O piping if needed.
 int setupPipes(char **tokens, char **arguments);
 
+// Sets stdin to point to the reading end of the specified pipe.
+// *pipe is a pair of int pointers, obtained from pipe().
+// Returns -1 upon failure, or 0 if successful.
+int pipeStdin(int *pipe);
+
+// Sets stdout to point to the writing end of the specified pipe.
+// *pipe is a pair of int pointers, obtained from pipe().
+// Returns -1 upon failure, or 0 if successful.
+int pipeStdout(int *pipe);
 
 // Finds the last non-whitespace character in the string and replaces
 // it with a null.
@@ -146,12 +155,7 @@ int main(int argc, char const *argv[])
 
 						} else if (child_pid != 0) {
 							// We must redirect stdout to the pipe...
-							if (dup2(processPipe[FILE_INDEX_STDOUT], FILE_INDEX_STDOUT) != FILE_INDEX_STDOUT) {
-								fprintf(stderr, "Failed to pipe stdout.");
-								exit(PIPE_FAILED);
-							}
-							if (close(processPipe[FILE_INDEX_STDIN]) == -1) {
-								fprintf(stderr, "Failed to close unused pipe stdin.");
+							if (pipeStdout(processPipe) == -1) {
 								exit(PIPE_FAILED);
 							}
 
@@ -164,12 +168,7 @@ int main(int argc, char const *argv[])
 						} else {
 							// We are the parent, i.e. we are on the receiving end of
 							// the pipe.
-							if (dup2(processPipe[FILE_INDEX_STDIN], FILE_INDEX_STDIN) != FILE_INDEX_STDIN) {
-								fprintf(stderr, "Failed to pipe stdin.");
-								exit(PIPE_FAILED);
-							}
-							if (close(processPipe[FILE_INDEX_STDOUT]) == -1) {
-								fprintf(stderr, "Failed to close unused pipe stdout.");
+							if (pipeStdin(processPipe) == -1) {
 								exit(PIPE_FAILED);
 							}
 						}
@@ -308,3 +307,26 @@ void nullifyTrailingWhitespace(char *string)
 	}
 }
 
+int pipeStdout(int *pipe) {
+	if (dup2(pipe[FILE_INDEX_STDOUT], FILE_INDEX_STDOUT) != FILE_INDEX_STDOUT) {
+		fprintf(stderr, "Failed to pipe stdout.");
+		return -1;
+	}
+	if (close(pipe[FILE_INDEX_STDIN]) == -1) {
+		fprintf(stderr, "Failed to close unused pipe stdin.");
+		return -1;
+	}
+	return 0;
+}
+
+int pipeStdin(int *pipe) {
+	if (dup2(pipe[FILE_INDEX_STDIN], FILE_INDEX_STDIN) != FILE_INDEX_STDIN) {
+		fprintf(stderr, "Failed to pipe stdin.");
+		return -1;
+	}
+	if (close(pipe[FILE_INDEX_STDOUT]) == -1) {
+		fprintf(stderr, "Failed to close unused pipe stdout.");
+		return -1;
+	}
+	return 0;
+}
