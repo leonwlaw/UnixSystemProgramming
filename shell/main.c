@@ -29,6 +29,9 @@ char *EXIT_COMMAND = "exit";
 int NOT_ENOUGH_MEMORY = 1;
 int EXEC_FAILED = 2;
 int PIPE_FAILED = 3;
+int FORK_FAILED = 4;
+
+char *ERRMSG_FORK_FAILED = "Fork failed";
 
 /* ----------------------------------------------
 Function prototypes 
@@ -122,7 +125,10 @@ int main(int argc, char const *argv[])
 		if (doFork) {
 			// Run the command and wait for it to complete.
 			int p_id = fork();
-			if (p_id == 0) {
+			if (p_id < 0) {
+				perror(ERRMSG_FORK_FAILED);
+				exit(FORK_FAILED);
+			} else if (p_id == 0) {
 				char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
 
 				if (arguments == NULL) {
@@ -134,7 +140,11 @@ int main(int argc, char const *argv[])
 					// Do we need to pipe?
 					if (tokens != currentProcessTokens) {
 						int child_pid = fork();
-						if (child_pid != 0) {
+
+						if (child_pid < 0) {
+							perror(ERRMSG_FORK_FAILED);
+							exit(FORK_FAILED);
+						} else if (child_pid != 0) {
 							// Since the parent will be running the last processed
 							// command, let's shift the end of the tokens so that
 							// we don't re-run the same command.
