@@ -1,10 +1,15 @@
-all:
+# Makefile for supershell.
+# Created by Leonard Law #0428512 for CS 239, Fall 2013.
+
+all: supershell
+
+supershell: main.c
 	gcc -Wall -std=c99 main.c -o supershell
 
-debug:
+debug: main.c
 	gcc -Wall -std=c99 -g main.c -o supershell
 
-test:
+test: supershell
 	@echo "-----------------------------"
 	@echo "Testing exit..."
 	      ./supershell < ./tests/test_exit
@@ -40,3 +45,6 @@ test:
 	@echo "-----------------------------"
 	@echo "Testing complete."
 	@echo
+
+clean:
+	rm -f supershell output*
