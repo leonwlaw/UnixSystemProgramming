@@ -140,20 +140,20 @@ int main(int argc, char const *argv[])
 					findLastPipedCommand(tokens, &currentProcessTokens);
 
 					// Do we need to pipe?
-					if (tokens != currentProcessTokens) {
+					while (tokens != currentProcessTokens) {
 						int processPipe[2];
 						if (pipe(processPipe) != 0) {
 							fputs("Error creating pipe.\n", stderr);
 							exit(PIPE_FAILED);
 						}
 
-						int child_pid = fork();
+						int chain_pid = fork();
 
-						if (child_pid < 0) {
+						if (chain_pid < 0) {
 							perror(ERRMSG_FORK_FAILED);
 							exit(FORK_FAILED);
 
-						} else if (child_pid != 0) {
+						} else if (chain_pid != 0) {
 							// We must redirect stdout to the pipe...
 							if (pipeStdout(processPipe) == -1) {
 								exit(PIPE_FAILED);
@@ -171,6 +171,8 @@ int main(int argc, char const *argv[])
 							if (pipeStdin(processPipe) == -1) {
 								exit(PIPE_FAILED);
 							}
+							// We are now ready to exec.
+							break;
 						}
 					}
 
