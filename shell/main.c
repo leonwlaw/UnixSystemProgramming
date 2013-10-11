@@ -131,6 +131,18 @@ int main(int argc, char const *argv[])
 					char **currentProcessTokens = NULL;
 					findLastPipedCommand(tokens, &currentProcessTokens);
 
+					// Do we need to pipe?
+					if (tokens != currentProcessTokens) {
+						int child_pid = fork();
+						if (child_pid != 0) {
+							// Since the parent will be running the last processed
+							// command, let's shift the end of the tokens so that
+							// we don't re-run the same command.
+							*(currentProcessTokens - 1) = NULL;
+							findLastPipedCommand(tokens, &currentProcessTokens);
+						}
+					}
+
 					if (doRedirects(currentProcessTokens, arguments) != 0) {
 						fputs("There was an error parsing the arguments.\n", stderr);
 					}
