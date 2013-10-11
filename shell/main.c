@@ -43,19 +43,7 @@ Function prototypes
 // Sets thisProcTokens to the beginning of the last command in the
 // chain of piped commands. This will point immediately after the
 // command separator.
-
-void findLastPipedCommand(char **tokens, char ***thisProcTokens) {
-	char **commandBegin = tokens;
-	for (; *tokens != NULL; ++tokens) {
-		// fprintf(stderr, "'%s'\n", *tokens);
-		if (strcmp(*tokens, PIPE_DELIMITER) == 0) {
-			commandBegin = ++tokens;
-			// fprintf(stderr, "Next command begins at: '%s'\n", *commandBegin);
-		}
-	}
-
-	*thisProcTokens = commandBegin;
-}
+void findLastPipedCommand(char **tokens, char ***thisProcTokens);
 
 
 // Calculates the length of the string array.
@@ -131,11 +119,13 @@ int main(int argc, char const *argv[])
 			if (p_id < 0) {
 				perror(ERRMSG_FORK_FAILED);
 				exit(FORK_FAILED);
+
 			} else if (p_id == 0) {
 				char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
 
 				if (arguments == NULL) {
 					fputs("Could not allocate space for arguments...", stderr);
+
 				} else {
 					char **currentProcessTokens = NULL;
 					findLastPipedCommand(tokens, &currentProcessTokens);
@@ -153,6 +143,7 @@ int main(int argc, char const *argv[])
 						if (child_pid < 0) {
 							perror(ERRMSG_FORK_FAILED);
 							exit(FORK_FAILED);
+
 						} else if (child_pid != 0) {
 							// We must redirect stdout to the pipe...
 							if (dup2(processPipe[FILE_INDEX_STDOUT], FILE_INDEX_STDOUT) != FILE_INDEX_STDOUT) {
@@ -169,6 +160,7 @@ int main(int argc, char const *argv[])
 							// we don't re-run the same command.
 							*(currentProcessTokens - 1) = NULL;
 							findLastPipedCommand(tokens, &currentProcessTokens);
+
 						} else {
 							// We are the parent, i.e. we are on the receiving end of
 							// the pipe.
@@ -193,11 +185,11 @@ int main(int argc, char const *argv[])
 					free(arguments);
 					exit(EXEC_FAILED);
 				}
+
 			} else {
 				wait(NULL);
 			}
 		}
-
 	}
 
 	free(input);
@@ -255,6 +247,19 @@ int doRedirects(char **tokens, char **arguments) {
 	}
 	return 0;
 }
+
+
+void findLastPipedCommand(char **tokens, char ***thisProcTokens) {
+	char **commandBegin = tokens;
+	for (; *tokens != NULL; ++tokens) {
+		if (strcmp(*tokens, PIPE_DELIMITER) == 0) {
+			commandBegin = ++tokens;
+		}
+	}
+
+	*thisProcTokens = commandBegin;
+}
+
 
 int stringArraySize(char **array) {
 	size_t size = 0;
