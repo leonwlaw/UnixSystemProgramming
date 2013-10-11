@@ -34,5 +34,9 @@ test:
 	      ./supershell < ./tests/test_redirect_mix
 	@echo
 	@echo "-----------------------------"
+	@echo "Testing piping with 2 commands..."
+	      ./supershell < ./tests/test_pipe_simple
+	@echo
+	@echo "-----------------------------"
 	@echo "Testing complete."
 	@echo
