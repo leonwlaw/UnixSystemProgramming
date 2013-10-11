@@ -43,6 +43,10 @@ test: supershell
 	      ./supershell < ./tests/test_pipe_simple
 	@echo
 	@echo "-----------------------------"
+	@echo "Testing piping with a lot of commands..."
+	      ./supershell < ./tests/test_pipe_long
+	@echo
+	@echo "-----------------------------"
 	@echo "Testing complete."
 	@echo
 
