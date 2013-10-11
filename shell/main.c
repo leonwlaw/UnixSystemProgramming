@@ -21,16 +21,37 @@ size_t PROMPT_BUFFERSIZE = 0xFFFF;
 size_t TOKEN_BUFFERSIZE = 0xFFF;
 
 char *TOKEN_DELIMITERS = " ";
+char *PIPE_DELIMITER = "|";
 
 char *DEFAULT_PROMPT = "> ";
 char *EXIT_COMMAND = "exit";
 
 int NOT_ENOUGH_MEMORY = 1;
 int EXEC_FAILED = 2;
+int PIPE_FAILED = 3;
 
 /* ----------------------------------------------
 Function prototypes 
 -----------------------------------------------*/
+
+// Sets thisProcTokens to the beginning of the last command in the
+// chain of piped commands. This will point immediately after the
+// command separator.
+
+void findLastPipedCommand(char **tokens, char ***thisProcTokens) {
+	char **commandBegin = tokens;
+	for (; *tokens != NULL; ++tokens) {
+		// fprintf(stderr, "'%s'\n", *tokens);
+		if (strcmp(*tokens, PIPE_DELIMITER) == 0) {
+			commandBegin = ++tokens;
+			// fprintf(stderr, "Next command begins at: '%s'\n", *commandBegin);
+		}
+	}
+
+	*thisProcTokens = commandBegin;
+}
+
+
 // Calculates the length of the string array.
 int stringArraySize(char **array);
 
@@ -41,6 +62,9 @@ int tokenize(char *string, char **tokens, int buffersize);
 
 // Returns 1 if failed to redirect stdin.
 int doRedirects(char **tokens, char **arguments);
+// Performs any I/O piping if needed.
+int setupPipes(char **tokens, char **arguments);
+
 
 // Finds the last non-whitespace character in the string and replaces
 // it with a null.
@@ -104,7 +128,10 @@ int main(int argc, char const *argv[])
 				if (arguments == NULL) {
 					fputs("Could not allocate space for arguments...", stderr);
 				} else {
-					if (doRedirects(tokens, arguments) != 0) {
+					char **currentProcessTokens = NULL;
+					findLastPipedCommand(tokens, &currentProcessTokens);
+
+					if (doRedirects(currentProcessTokens, arguments) != 0) {
 						fputs("There was an error parsing the arguments.\n", stderr);
 					}
 
