@@ -26,6 +26,9 @@ char *PIPE_DELIMITER = "|";
 char *DEFAULT_PROMPT = "> ";
 char *EXIT_COMMAND = "exit";
 
+int FILE_INDEX_STDIN = 0;
+int FILE_INDEX_STDOUT = 1;
+
 int NOT_ENOUGH_MEMORY = 1;
 int EXEC_FAILED = 2;
 int PIPE_FAILED = 3;
@@ -139,17 +142,44 @@ int main(int argc, char const *argv[])
 
 					// Do we need to pipe?
 					if (tokens != currentProcessTokens) {
+						int processPipe[2];
+						if (pipe(processPipe) != 0) {
+							fputs("Error creating pipe.\n", stderr);
+							exit(PIPE_FAILED);
+						}
+
 						int child_pid = fork();
 
 						if (child_pid < 0) {
 							perror(ERRMSG_FORK_FAILED);
 							exit(FORK_FAILED);
 						} else if (child_pid != 0) {
+							// We must redirect stdout to the pipe...
+							if (dup2(processPipe[FILE_INDEX_STDOUT], FILE_INDEX_STDOUT) != FILE_INDEX_STDOUT) {
+								fprintf(stderr, "Failed to pipe stdout.");
+								exit(PIPE_FAILED);
+							}
+							if (close(processPipe[FILE_INDEX_STDIN]) == -1) {
+								fprintf(stderr, "Failed to close unused pipe stdin.");
+								exit(PIPE_FAILED);
+							}
+
 							// Since the parent will be running the last processed
 							// command, let's shift the end of the tokens so that
 							// we don't re-run the same command.
 							*(currentProcessTokens - 1) = NULL;
 							findLastPipedCommand(tokens, &currentProcessTokens);
+						} else {
+							// We are the parent, i.e. we are on the receiving end of
+							// the pipe.
+							if (dup2(processPipe[FILE_INDEX_STDIN], FILE_INDEX_STDIN) != FILE_INDEX_STDIN) {
+								fprintf(stderr, "Failed to pipe stdin.");
+								exit(PIPE_FAILED);
+							}
+							if (close(processPipe[FILE_INDEX_STDOUT]) == -1) {
+								fprintf(stderr, "Failed to close unused pipe stdout.");
+								exit(PIPE_FAILED);
+							}
 						}
 					}
 
