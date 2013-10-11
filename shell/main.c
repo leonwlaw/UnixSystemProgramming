@@ -56,8 +56,12 @@ int tokenize(char *string, char **tokens, int buffersize);
 
 // Returns 1 if failed to redirect stdin.
 int doRedirects(char **tokens, char **arguments);
-// Performs any I/O piping if needed.
-int setupPipes(char **tokens, char **arguments);
+
+// Transparently sets up any piping between processes as needed.
+// This will also call fork() as needed to connect the processes' pipes
+// Returns 0 on normal operation. Otherwise, the return value corresponds
+// to the error constants listed above.
+int setupPipesAndFork(char **tokens, char ***processTokens);
 
 // Sets stdin to point to the reading end of the specified pipe.
 // *pipe is a pair of int pointers, obtained from pipe().
@@ -136,47 +140,14 @@ int main(int argc, char const *argv[])
 					fputs("Could not allocate space for arguments...", stderr);
 
 				} else {
-					char **currentProcessTokens = NULL;
-					findLastPipedCommand(tokens, &currentProcessTokens);
-
-					// Do we need to pipe?
-					while (tokens != currentProcessTokens) {
-						int processPipe[2];
-						if (pipe(processPipe) != 0) {
-							fputs("Error creating pipe.\n", stderr);
-							exit(PIPE_FAILED);
-						}
-
-						int chain_pid = fork();
-
-						if (chain_pid < 0) {
-							perror(ERRMSG_FORK_FAILED);
-							exit(FORK_FAILED);
-
-						} else if (chain_pid != 0) {
-							// We must redirect stdout to the pipe...
-							if (pipeStdout(processPipe) == -1) {
-								exit(PIPE_FAILED);
-							}
-
-							// Since the parent will be running the last processed
-							// command, let's shift the end of the tokens so that
-							// we don't re-run the same command.
-							*(currentProcessTokens - 1) = NULL;
-							findLastPipedCommand(tokens, &currentProcessTokens);
-
-						} else {
-							// We are the parent, i.e. we are on the receiving end of
-							// the pipe.
-							if (pipeStdin(processPipe) == -1) {
-								exit(PIPE_FAILED);
-							}
-							// We are now ready to exec.
-							break;
-						}
+					char **processTokens;
+					int setupPipesSuccess = setupPipesAndFork(tokens, &processTokens);
+					if (setupPipesSuccess != 0) {
+						fputs("Setting up pipes between processes failed.\n", stderr);
+						exit(setupPipesSuccess);
 					}
 
-					if (doRedirects(currentProcessTokens, arguments) != 0) {
+					if (doRedirects(processTokens, arguments) != 0) {
 						fputs("There was an error parsing the arguments.\n", stderr);
 					}
 
@@ -329,6 +300,48 @@ int pipeStdin(int *pipe) {
 	if (close(pipe[FILE_INDEX_STDOUT]) == -1) {
 		fprintf(stderr, "Failed to close unused pipe stdout.");
 		return -1;
+	}
+	return 0;
+}
+
+int setupPipesAndFork(char **tokens, char ***processTokens) {
+	findLastPipedCommand(tokens, processTokens);
+
+	// Do we need to pipe?
+	while (tokens != *processTokens) {
+		int processPipe[2];
+		if (pipe(processPipe) != 0) {
+			fputs("Error creating pipe.\n", stderr);
+			return PIPE_FAILED;
+		}
+
+		int chain_pid = fork();
+
+		if (chain_pid < 0) {
+			perror(ERRMSG_FORK_FAILED);
+			return FORK_FAILED;
+
+		} else if (chain_pid != 0) {
+			// We must redirect stdout to the pipe...
+			if (pipeStdout(processPipe) == -1) {
+				return PIPE_FAILED;
+			}
+
+			// Since the parent will be running the last processed
+			// command, let's shift the end of the tokens so that
+			// we don't re-run the same command.
+			*(*processTokens - 1) = NULL;
+			findLastPipedCommand(tokens, processTokens);
+
+		} else {
+			// We are the parent, i.e. we are on the receiving end of
+			// the pipe.
+			if (pipeStdin(processPipe) == -1) {
+				return PIPE_FAILED;
+			}
+			// We are now ready to exec.
+			break;
+		}
 	}
 	return 0;
 }
