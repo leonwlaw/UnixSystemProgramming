@@ -70,10 +70,8 @@ int diskUsage(char *directoryPath, bool displayOutput) {
       if ((strcmp(".", directoryEntry->d_name) != 0) &&
           ((dirstat.st_mode & S_IFMT) == S_IFDIR)) {
         size = diskUsage(childPath, false);
-        if (displayOutput) {
-          fprintf(stdout, "%-8d%s\n", size, childPath);
-        }
-      }
+        fprintf(stdout, "%-8d%s\n", size, childPath);
+      } 
       total += size;
     }
   }
