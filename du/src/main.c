@@ -8,6 +8,7 @@
  */
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -17,10 +18,11 @@
 
 const int STAT_FAILED = 1;
 const int OPENDIR_FAILED = 2;
+const int MEMORY_ALLOC_FAILED = 3;
 
 /* Calculates the disk usage for the specified directory.
  */
-int diskUsage(char *directoryPath) {
+int diskUsage(char *directoryPath, bool displayOutput) {
   // Now check each file entry...
   DIR *directory;
   if ((directory = opendir(directoryPath)) == NULL) {
@@ -37,9 +39,24 @@ int diskUsage(char *directoryPath) {
     // disk usage.
     if (strcmp("..", directoryEntry->d_name) != 0) {
 
+      // Need to account for terminating \0, as well as path separator.
+      size_t directoryPathLength = strlen(directoryPath);
+      size_t childNameLength = strlen(directoryEntry->d_name);
+      char *childPath;
+      if ((childPath = (char *)calloc(
+        directoryPathLength + childNameLength + 2, 
+        sizeof(char))) == NULL) {
+
+        perror("du");
+        exit(MEMORY_ALLOC_FAILED);
+      }
+      strncpy(childPath, directoryPath, directoryPathLength);
+      childPath[directoryPathLength] = '/';
+      strncpy(childPath + directoryPathLength + 1, directoryEntry->d_name, childNameLength);
+
       // Retrieve directory information for the current directory
       struct stat dirstat;
-      if (lstat(directoryEntry->d_name, &dirstat) != 0) {
+      if (lstat(childPath, &dirstat) != 0) {
         perror("du");
         exit(STAT_FAILED);
       }
@@ -52,20 +69,26 @@ int diskUsage(char *directoryPath) {
       // working directory.
       if ((strcmp(".", directoryEntry->d_name) != 0) &&
           ((dirstat.st_mode & S_IFMT) == S_IFDIR)) {
-        fprintf(stdout, "%-8d./%s\n", size, directoryEntry->d_name);
+        if (displayOutput) {
+          fprintf(stdout, "%-8d%s\n", total, childPath);
+        }
+        total += diskUsage(childPath, false);
+      } else {
+        total += size;
       }
-      total += size;
     }
   }
-  fprintf(stdout, "%-8d%s\n", total, ".");
-  return 0;
+  if (displayOutput) {
+    fprintf(stdout, "%-8d%s\n", total, ".");
+  }
+  return total;
 }
 
 
 
-int main(int argc, char argv) {
+int main(int argc, char **argv) {
   char directoryPath[] = ".";
-  diskUsage(directoryPath);
+  diskUsage(directoryPath, true);
   return 0;
 }
 

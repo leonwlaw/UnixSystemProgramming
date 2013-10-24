@@ -1,5 +1,5 @@
 all:
-	g++ src/main.c -Wall -o du
+	gcc src/main.c -std=gnu99 -Wall -o du
 
 debug:
-	g++ src/main.c -Wall -g -o du
+	gcc src/main.c -Wall -g -o du
