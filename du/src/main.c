@@ -21,8 +21,9 @@ const int OPENDIR_FAILED = 2;
 const int MEMORY_ALLOC_FAILED = 3;
 
 /* Calculates the disk usage for the specified directory.
+ * Prints out the disk usage for child directories.
  */
-int diskUsage(char *directoryPath, bool displayOutput) {
+int diskUsage(char *directoryPath) {
   // Now check each file entry...
   DIR *directory;
   if ((directory = opendir(directoryPath)) == NULL) {
@@ -71,14 +72,11 @@ int diskUsage(char *directoryPath, bool displayOutput) {
       // working directory.
       if ((strcmp(".", directoryEntry->d_name) != 0) &&
           ((dirstat.st_mode & S_IFMT) == S_IFDIR)) {
-        size = diskUsage(childPath, false);
+        size = diskUsage(childPath);
         fprintf(stdout, "%-8d%s\n", size, childPath);
       } 
       total += size;
     }
-  }
-  if (displayOutput) {
-    fprintf(stdout, "%-8d%s\n", total, directoryPath);
   }
   return total;
 }
@@ -92,7 +90,9 @@ int main(int argc, char **argv) {
     directoryPath = argv[1];
   }
 
-  diskUsage(directoryPath, true);
+  int size = diskUsage(directoryPath);
+  fprintf(stdout, "%-8d%s\n", size, directoryPath);
+
   return 0;
 }
 
