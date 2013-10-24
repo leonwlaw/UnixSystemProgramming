@@ -24,9 +24,32 @@ const int MEMORY_ALLOC_FAILED = 3;
 // 1023 characters should be plenty, I hope.
 const size_t CHILD_PATH_BUFFER_SIZE = 4096;
 
+/* Function Stubs
+ */
+
 /* Calculates the disk usage for the specified directory.
  * Prints out the disk usage for child directories.
  */
+int diskUsage(char *directoryPath);
+
+
+int main(int argc, char **argv) {
+  char *directoryPath = ".";
+
+  if (argc > 1) {
+    directoryPath = argv[1];
+  }
+
+  int size = diskUsage(directoryPath);
+  fprintf(stdout, "%-8d%s\n", size, directoryPath);
+
+  return 0;
+}
+
+
+/* Function Definitions
+ */
+
 int diskUsage(char *directoryPath) {
   // Now check each file entry...
   DIR *directory;
@@ -93,20 +116,5 @@ int diskUsage(char *directoryPath) {
 
   free(fullPath);
   return total;
-}
-
-
-
-int main(int argc, char **argv) {
-  char *directoryPath = ".";
-
-  if (argc > 1) {
-    directoryPath = argv[1];
-  }
-
-  int size = diskUsage(directoryPath);
-  fprintf(stdout, "%-8d%s\n", size, directoryPath);
-
-  return 0;
 }
 
