@@ -38,8 +38,8 @@ int diskUsage(char *directoryPath) {
   // Build the path for the child item, so that we can use it
   // to query the inode information from the system.
   // Need to account for terminating \0.
-  char *childPath;
-  if ((childPath = (char *)calloc(CHILD_PATH_BUFFER_SIZE, sizeof(char))) == NULL) {
+  char *fullPath;
+  if ((fullPath = (char *)calloc(CHILD_PATH_BUFFER_SIZE, sizeof(char))) == NULL) {
     perror("du");
     exit(MEMORY_ALLOC_FAILED);
   }
@@ -47,8 +47,11 @@ int diskUsage(char *directoryPath) {
   // This is the path to the current directory.
   // This is common to all child elements.
   size_t directoryPathLength = strlen(directoryPath);
-  strncpy(childPath, directoryPath, directoryPathLength);
-  childPath[directoryPathLength] = '/';
+  strncpy(fullPath, directoryPath, directoryPathLength);
+  fullPath[directoryPathLength] = '/';
+
+  // Children only need to modify the part of the path after this...
+  char *childPath = fullPath + directoryPathLength + 1;
 
   unsigned total = 0;
   for (struct dirent *directoryEntry = readdir(directory);
@@ -63,12 +66,12 @@ int diskUsage(char *directoryPath) {
       // to query the inode information from the system.
       size_t childNameLength = strlen(directoryEntry->d_name);
       // Path separator is in the middle, so +1
-      strncpy(childPath + directoryPathLength + 1, directoryEntry->d_name, childNameLength);
-      childPath[directoryPathLength + childNameLength + 1] = '\0';
+      strncpy(childPath, directoryEntry->d_name, childNameLength);
+      childPath[childNameLength] = '\0';
 
       // Retrieve directory information for the current directory
       struct stat dirstat;
-      if (lstat(childPath, &dirstat) != 0) {
+      if (lstat(fullPath, &dirstat) != 0) {
         perror("du");
         exit(STAT_FAILED);
       }
@@ -81,14 +84,14 @@ int diskUsage(char *directoryPath) {
       // working directory.
       if ((strcmp(".", directoryEntry->d_name) != 0) &&
           ((dirstat.st_mode & S_IFMT) == S_IFDIR)) {
-        size = diskUsage(childPath);
-        fprintf(stdout, "%-8d%s\n", size, childPath);
+        size = diskUsage(fullPath);
+        fprintf(stdout, "%-8d%s\n", size, fullPath);
       } 
       total += size;
     }
   }
 
-  free(childPath);
+  free(fullPath);
   return total;
 }
 
