@@ -18,10 +18,12 @@
 const int STAT_FAILED = 1;
 const int OPENDIR_FAILED = 2;
 
-int main(int argc, char *argv) {
+/* Calculates the disk usage for the specified directory.
+ */
+int diskUsage(char *directoryPath) {
   // Now check each file entry...
   DIR *directory;
-  if ((directory = opendir(".")) == NULL) {
+  if ((directory = opendir(directoryPath)) == NULL) {
     perror("du");
     exit(OPENDIR_FAILED);
   }
@@ -56,6 +58,14 @@ int main(int argc, char *argv) {
     }
   }
   fprintf(stdout, "%-8d%s\n", total, ".");
+  return 0;
+}
+
+
+
+int main(int argc, char argv) {
+  char directoryPath[] = ".";
+  diskUsage(directoryPath);
   return 0;
 }
 
