@@ -39,6 +39,8 @@ int diskUsage(char *directoryPath, bool displayOutput) {
     // disk usage.
     if (strcmp("..", directoryEntry->d_name) != 0) {
 
+      // Build the path for the child item, so that we can use it
+      // to query the inode information from the system.
       // Need to account for terminating \0, as well as path separator.
       size_t directoryPathLength = strlen(directoryPath);
       size_t childNameLength = strlen(directoryEntry->d_name);
@@ -76,7 +78,7 @@ int diskUsage(char *directoryPath, bool displayOutput) {
     }
   }
   if (displayOutput) {
-    fprintf(stdout, "%-8d%s\n", total, ".");
+    fprintf(stdout, "%-8d%s\n", total, directoryPath);
   }
   return total;
 }
@@ -84,7 +86,12 @@ int diskUsage(char *directoryPath, bool displayOutput) {
 
 
 int main(int argc, char **argv) {
-  char directoryPath[] = ".";
+  char *directoryPath = ".";
+
+  if (argc > 1) {
+    directoryPath = argv[1];
+  }
+
   diskUsage(directoryPath, true);
   return 0;
 }
