@@ -77,6 +77,38 @@ int diskUsage(char *directoryPath) {
   char *childPath = fullPath + directoryPathLength + 1;
 
   unsigned total = 0;
+
+  // Check files...
+  off_t directoryBeginning = telldir(directory);
+  for (struct dirent *directoryEntry = readdir(directory);
+       directoryEntry != NULL;
+       directoryEntry = readdir(directory)) {
+
+    // Modify the path for the child item, so that we can use it
+    // to query the inode information from the system.
+    size_t childNameLength = strlen(directoryEntry->d_name);
+    // Path separator is in the middle, so +1
+    strncpy(childPath, directoryEntry->d_name, childNameLength);
+    childPath[childNameLength] = '\0';
+
+    // Retrieve directory information for the current directory
+    struct stat dirstat;
+    if (lstat(fullPath, &dirstat) != 0) {
+      perror("du");
+      exit(STAT_FAILED);
+    }
+
+    // Only count files.
+    if (S_ISREG(dirstat.st_mode)) {
+      // Each block is 512B large. Therefore, if we divide the # of blocks
+      // by 2, we get the size in KB.
+      unsigned size = (int)dirstat.st_blocks / 2;
+
+      total += size;
+    }
+  }
+
+  seekdir(directory, directoryBeginning);
   for (struct dirent *directoryEntry = readdir(directory);
        directoryEntry != NULL;
        directoryEntry = readdir(directory)) {
@@ -105,12 +137,14 @@ int diskUsage(char *directoryPath) {
 
       // Only display if this is a directory, that isn't the current
       // working directory.
-      if ((strcmp(".", directoryEntry->d_name) != 0) &&
-          ((dirstat.st_mode & S_IFMT) == S_IFDIR)) {
-        size = diskUsage(fullPath);
-        fprintf(stdout, "%-8d%s\n", size, fullPath);
+      if ((dirstat.st_mode & S_IFMT) == S_IFDIR) {
+        if (strcmp(".", directoryEntry->d_name) != 0) {
+          size = diskUsage(fullPath);
+          fprintf(stdout, "%-8d%s\n", size, fullPath);
+        }
+
+        total += size;
       } 
-      total += size;
     }
   }
 
