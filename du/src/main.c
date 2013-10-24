@@ -20,6 +20,10 @@ const int STAT_FAILED = 1;
 const int OPENDIR_FAILED = 2;
 const int MEMORY_ALLOC_FAILED = 3;
 
+// The size of the temporary array to hold the child path at each iteration.
+// 1023 characters should be plenty, I hope.
+const size_t CHILD_PATH_BUFFER_SIZE = 4096;
+
 /* Calculates the disk usage for the specified directory.
  * Prints out the disk usage for child directories.
  */
@@ -31,6 +35,21 @@ int diskUsage(char *directoryPath) {
     exit(OPENDIR_FAILED);
   }
 
+  // Build the path for the child item, so that we can use it
+  // to query the inode information from the system.
+  // Need to account for terminating \0.
+  char *childPath;
+  if ((childPath = (char *)calloc(CHILD_PATH_BUFFER_SIZE, sizeof(char))) == NULL) {
+    perror("du");
+    exit(MEMORY_ALLOC_FAILED);
+  }
+
+  // This is the path to the current directory.
+  // This is common to all child elements.
+  size_t directoryPathLength = strlen(directoryPath);
+  strncpy(childPath, directoryPath, directoryPathLength);
+  childPath[directoryPathLength] = '/';
+
   unsigned total = 0;
   for (struct dirent *directoryEntry = readdir(directory);
        directoryEntry != NULL;
@@ -40,22 +59,12 @@ int diskUsage(char *directoryPath) {
     // disk usage.
     if (strcmp("..", directoryEntry->d_name) != 0) {
 
-      // Build the path for the child item, so that we can use it
+      // Modify the path for the child item, so that we can use it
       // to query the inode information from the system.
-      // Need to account for terminating \0, as well as path separator.
-      size_t directoryPathLength = strlen(directoryPath);
       size_t childNameLength = strlen(directoryEntry->d_name);
-      char *childPath;
-      if ((childPath = (char *)calloc(
-        directoryPathLength + childNameLength + 2, 
-        sizeof(char))) == NULL) {
-
-        perror("du");
-        exit(MEMORY_ALLOC_FAILED);
-      }
-      strncpy(childPath, directoryPath, directoryPathLength);
-      childPath[directoryPathLength] = '/';
+      // Path separator is in the middle, so +1
       strncpy(childPath + directoryPathLength + 1, directoryEntry->d_name, childNameLength);
+      childPath[directoryPathLength + childNameLength + 1] = '\0';
 
       // Retrieve directory information for the current directory
       struct stat dirstat;
@@ -78,6 +87,8 @@ int diskUsage(char *directoryPath) {
       total += size;
     }
   }
+
+  free(childPath);
   return total;
 }
 
