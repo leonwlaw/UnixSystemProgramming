@@ -18,7 +18,8 @@
 
 const int STAT_FAILED = 1;
 const int OPENDIR_FAILED = 2;
-const int MEMORY_ALLOC_FAILED = 3;
+const int CLOSEDIR_FAILED = 3;
+const int MEMORY_ALLOC_FAILED = 4;
 
 // The size of the temporary array to hold the child path at each iteration.
 // 1023 characters should be plenty, I hope.
@@ -146,6 +147,10 @@ int diskUsage(char *directoryPath) {
         total += size;
       } 
     }
+  }
+  if (closedir(directory) != 0) {
+    perror("du");
+    exit(CLOSEDIR_FAILED);
   }
 
   free(fullPath);
