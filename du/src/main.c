@@ -36,6 +36,65 @@ const int SEEN_INODE_BUFFER_SIZE = 1024;
  */
 bool isInInodesArray(ino_t inode, ino_t *seenInodes, size_t length);
 
+/*
+  Checks the disk usage for a particular directory's files.
+  It will only count hard links, and for files that are hard linked
+  multiple times, it will only count the first one that is encountered.
+
+  Soft links are not counted.
+
+  fullPath is the entire path buffer that will be used to store the full
+  path to the child element. This is to avoid allocating memory for each
+  call to this function.
+
+  childPath must point to an entry in fullPath. This pointer will be
+  used directly to modify the path to point to the child element, saving
+  compute time from having to figure out where the childPath starts.
+
+  seenInodes is a pointer to the array of i-nodes that we have
+  encountered. This is to allow us to count hard links to a file only
+  once. We do not modify this when we encounter files with only 1 hard
+  link.
+
+  lastUsedInodeIndex points to a size_t holding the last index used in
+  seenInodes.
+
+  seenInodesLength is the size of the index.
+ */
+int getDiskUsageFiles(
+  char *directoryPath, DIR *directory,
+  char *fullPath, char *childPath,
+  ino_t **seenInodes, size_t *lastUsedInodeIndex, size_t seenInodesLength);
+
+
+/*
+  Checks the disk usage for a particular directory's subdirectories.
+  It will recursively find the disk usage of any subdirectories.
+
+  fullPath is the entire path buffer that will be used to store the full
+  path to the child element. This is to avoid allocating memory for each
+  call to this function.
+
+  childPath must point to an entry in fullPath. This pointer will be
+  used directly to modify the path to point to the child element, saving
+  compute time from having to figure out where the childPath starts.
+
+  seenInodes is a pointer to the array of i-nodes that we have
+  encountered. This is to allow us to count hard links to a file only
+  once. We do not modify this when we encounter files with only 1 hard
+  link.
+
+  lastUsedInodeIndex points to a size_t holding the last index used in
+  seenInodes.
+
+  seenInodesLength is the size of the index.
+ */
+int getDiskUsageDirs(
+  char *directoryPath, DIR *directory,
+  char *fullPath, char *childPath,
+  ino_t **seenInodes, size_t *lastUsedInodeIndex, size_t seenInodesLength);
+
+
 /* Calculates the disk usage for the specified directory.
  * Prints out the disk usage for child directories.
  */
@@ -94,11 +153,33 @@ int diskUsage(char *directoryPath, ino_t **seenInodes, size_t *lastUsedInodeInde
 
   unsigned total = 0;
 
-  // Check files...
+  // Work on files first, so that if hard links to the same file are
+  // present in subdirectories, we count them here.
   off_t directoryBeginning = telldir(directory);
+  total += getDiskUsageFiles(directoryPath, directory, fullPath, childPath, seenInodes, lastUsedInodeIndex, seenInodesLength);
+
+  seekdir(directory, directoryBeginning);
+  total += getDiskUsageDirs(directoryPath, directory, fullPath, childPath, seenInodes, lastUsedInodeIndex, seenInodesLength);
+
+  if (closedir(directory) != 0) {
+    perror("du");
+    exit(CLOSEDIR_FAILED);
+  }
+
+  free(fullPath);
+  return total;
+}
+
+
+int getDiskUsageFiles(
+  char *directoryPath, DIR *directory, char *fullPath, 
+  char *childPath, ino_t **seenInodes,
+  size_t *lastUsedInodeIndex, size_t seenInodesLength) {
+
+  int total = 0;
   for (struct dirent *directoryEntry = readdir(directory);
-       directoryEntry != NULL;
-       directoryEntry = readdir(directory)) {
+     directoryEntry != NULL;
+     directoryEntry = readdir(directory)) {
 
     // Modify the path for the child item, so that we can use it
     // to query the inode information from the system.
@@ -137,8 +218,12 @@ int diskUsage(char *directoryPath, ino_t **seenInodes, size_t *lastUsedInodeInde
       }
     }
   }
+  return total;
+}
 
-  seekdir(directory, directoryBeginning);
+
+int getDiskUsageDirs(char *directoryPath, DIR *directory, char *fullPath, char *childPath, ino_t **seenInodes, size_t *lastUsedInodeIndex, size_t seenInodesLength) {
+  int total = 0;
   for (struct dirent *directoryEntry = readdir(directory);
        directoryEntry != NULL;
        directoryEntry = readdir(directory)) {
@@ -177,12 +262,6 @@ int diskUsage(char *directoryPath, ino_t **seenInodes, size_t *lastUsedInodeInde
       } 
     }
   }
-  if (closedir(directory) != 0) {
-    perror("du");
-    exit(CLOSEDIR_FAILED);
-  }
-
-  free(fullPath);
   return total;
 }
 
