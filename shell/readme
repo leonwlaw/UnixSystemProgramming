@@ -1,0 +1,16 @@
+Leonard Law #0428512
+Fall 2013 CS 239 Unix System Programming
+
+What works:
+ - redirecting a file to stdin
+ - redirecting stdout to a file
+ - redirecting multiple files to stdin (last file will be used)
+ - redirecting stdout to multiple files directly from command line (last file will be used)
+
+What doesn't work:
+ - redirecting stdout to multiple files, when input is redirected into supershell (no files get output, period)
+
+Misc stuff that wasn't in the spec:
+ - supershell can take redirected input! (checks if fgets returns anything)
+ - Automated(-ish) testing via 'make test'
+ - Hitting enter when nothing is typed do not cause errors to occur
