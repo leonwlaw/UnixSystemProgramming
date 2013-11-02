@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <wait.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -33,6 +34,7 @@ int NOT_ENOUGH_MEMORY = 1;
 int EXEC_FAILED = 2;
 int PIPE_FAILED = 3;
 int FORK_FAILED = 4;
+int SIGACTION_ERROR = 5;
 
 char *ERRMSG_FORK_FAILED = "Fork failed";
 
@@ -76,6 +78,13 @@ int pipeStdout(int *pipe);
 // Finds the last non-whitespace character in the string and replaces
 // it with a null.
 void nullifyTrailingWhitespace(char *string);
+
+// This function will handle SIGINTs so that they do not terminate
+// the shell.  It will instead terminate the current child that we
+// are waiting on, if one exists.
+void handleSIGINT(int signal);
+
+
 /* ----------------------------------------------
 Main
 -----------------------------------------------*/
@@ -99,6 +108,16 @@ int main(int argc, char const *argv[])
 		strncpy(prompt, DEFAULT_PROMPT, PROMPT_BUFFERSIZE);
 	}
 
+	struct sigaction oldSigaction;
+	struct sigaction newSigaction;
+	sigemptyset(&newSigaction.sa_mask);
+	newSigaction.sa_flags = 0;
+	newSigaction.sa_handler = handleSIGINT;
+	if (sigaction(SIGINT, &newSigaction, &oldSigaction) != 0) {
+		perror("sigaction");
+		exit(SIGACTION_ERROR);
+	}
+
 	// We should keep the user in the loop until they type the
 	// exit command.
 	while (1)
@@ -106,64 +125,66 @@ int main(int argc, char const *argv[])
 		int doFork = 1;
 
 		fputs(prompt, stdout);
-		if (fgets(input, INPUT_BUFFERSIZE, stdin) == 0) {
-			// No more to read...
-			exit(0);
-		}
+		if (fgets(input, INPUT_BUFFERSIZE, stdin) == NULL) {
+			// This means that the user issued a SIGINT, so we forget about the
+			// current input and ask for a new prompt...
+			// Put a newline so that the prompt doesn't get mixed up with the
+			// current line's input.
+			fputc('\n', stdout);
+		} else {
+			// Trailing whitespace causes problems with exec...
+			nullifyTrailingWhitespace(input);
 
-		// Trailing whitespace causes problems with exec...
-		nullifyTrailingWhitespace(input);
+			if (tokenize(input, tokens, TOKEN_BUFFERSIZE) != 0)
+			{
+				fputs("Not all tokens were tokenized successfully.\n", stderr);
+				doFork = 0;
+			}
 
-		if (tokenize(input, tokens, TOKEN_BUFFERSIZE) != 0)
-		{
-			fputs("Not all tokens were tokenized successfully.\n", stderr);
-			doFork = 0;
-		}
+			if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
+				exit(0);
+			}
 
-		if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
-			exit(0);
-		}
+			// Is there even a command to run?
+			doFork &= strncmp(tokens[0], "\n", 1) != 0;
+			if (doFork) {
+				// Run the command and wait for it to complete.
+				int p_id = fork();
+				if (p_id < 0) {
+					perror(ERRMSG_FORK_FAILED);
+					exit(FORK_FAILED);
 
-		// Is there even a command to run?
-		doFork &= strncmp(tokens[0], "\n", 1) != 0;
-		if (doFork) {
-			// Run the command and wait for it to complete.
-			int p_id = fork();
-			if (p_id < 0) {
-				perror(ERRMSG_FORK_FAILED);
-				exit(FORK_FAILED);
+				} else if (p_id == 0) {
+					char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
 
-			} else if (p_id == 0) {
-				char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
+					if (arguments == NULL) {
+						fputs("Could not allocate space for arguments...", stderr);
 
-				if (arguments == NULL) {
-					fputs("Could not allocate space for arguments...", stderr);
+					} else {
+						char **processTokens;
+						int setupPipesSuccess = setupPipesAndFork(tokens, &processTokens);
+						if (setupPipesSuccess != 0) {
+							fputs("Setting up pipes between processes failed.\n", stderr);
+							exit(setupPipesSuccess);
+						}
+
+						if (doRedirects(processTokens, arguments) != 0) {
+							fputs("There was an error parsing the arguments.\n", stderr);
+						}
+
+						execvp(arguments[0], arguments);
+						perror(argv[0]);
+						
+						free(arguments);
+						exit(EXEC_FAILED);
+					}
 
 				} else {
-					char **processTokens;
-					int setupPipesSuccess = setupPipesAndFork(tokens, &processTokens);
-					if (setupPipesSuccess != 0) {
-						fputs("Setting up pipes between processes failed.\n", stderr);
-						exit(setupPipesSuccess);
-					}
-
-					if (doRedirects(processTokens, arguments) != 0) {
-						fputs("There was an error parsing the arguments.\n", stderr);
-					}
-
-					execvp(arguments[0], arguments);
-					perror(argv[0]);
-					
-					free(arguments);
-					exit(EXEC_FAILED);
+					wait(NULL);
 				}
-
-			} else {
-				wait(NULL);
 			}
 		}
 	}
-
 	free(input);
 	free(prompt);
 	return 0;
@@ -345,3 +366,9 @@ int setupPipesAndFork(char **tokens, char ***processTokens) {
 	}
 	return 0;
 }
+
+void handleSIGINT(int signum) {
+
+}
+
+
