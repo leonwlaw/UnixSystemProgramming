@@ -185,7 +185,12 @@ int main(int argc, char const *argv[])
 					}
 
 				} else {
-					wait(NULL);
+					int status;
+					int wait_pid;
+					while ((wait_pid = wait(&status)) != p_id) {
+						// Do nothing...
+					}
+					
 				}
 			}
 		}
