@@ -155,6 +155,11 @@ int main(int argc, char const *argv[])
 					exit(FORK_FAILED);
 
 				} else if (p_id == 0) {
+					int my_pid = getpid();
+					if (setpgid(my_pid, my_pid) != 0) {
+						perror("Change process group");
+						exit(FORK_FAILED);
+					}
 					char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
 
 					if (arguments == NULL) {
