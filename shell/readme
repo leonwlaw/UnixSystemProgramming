@@ -6,6 +6,8 @@ What works:
  - redirecting stdout to a file
  - redirecting multiple files to stdin (last file will be used)
  - redirecting stdout to multiple files directly from command line (last file will be used)
+ - I/O piping
+ - I/O piping with redirection
 
 What doesn't work:
  - redirecting stdout to multiple files, when input is redirected into supershell (no files get output, period)
@@ -14,3 +16,4 @@ Misc stuff that wasn't in the spec:
  - supershell can take redirected input! (checks if fgets returns anything)
  - Automated(-ish) testing via 'make test'
  - Hitting enter when nothing is typed do not cause errors to occur
+ - I/O piping between any number of commands

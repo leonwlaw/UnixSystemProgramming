@@ -21,16 +21,31 @@ size_t PROMPT_BUFFERSIZE = 0xFFFF;
 size_t TOKEN_BUFFERSIZE = 0xFFF;
 
 char *TOKEN_DELIMITERS = " ";
+char *PIPE_DELIMITER = "|";
 
 char *DEFAULT_PROMPT = "> ";
 char *EXIT_COMMAND = "exit";
 
+int FILE_INDEX_STDIN = 0;
+int FILE_INDEX_STDOUT = 1;
+
 int NOT_ENOUGH_MEMORY = 1;
 int EXEC_FAILED = 2;
+int PIPE_FAILED = 3;
+int FORK_FAILED = 4;
+
+char *ERRMSG_FORK_FAILED = "Fork failed";
 
 /* ----------------------------------------------
 Function prototypes 
 -----------------------------------------------*/
+
+// Sets thisProcTokens to the beginning of the last command in the
+// chain of piped commands. This will point immediately after the
+// command separator.
+void findLastPipedCommand(char **tokens, char ***thisProcTokens);
+
+
 // Calculates the length of the string array.
 int stringArraySize(char **array);
 
@@ -41,6 +56,22 @@ int tokenize(char *string, char **tokens, int buffersize);
 
 // Returns 1 if failed to redirect stdin.
 int doRedirects(char **tokens, char **arguments);
+
+// Transparently sets up any piping between processes as needed.
+// This will also call fork() as needed to connect the processes' pipes
+// Returns 0 on normal operation. Otherwise, the return value corresponds
+// to the error constants listed above.
+int setupPipesAndFork(char **tokens, char ***processTokens);
+
+// Sets stdin to point to the reading end of the specified pipe.
+// *pipe is a pair of int pointers, obtained from pipe().
+// Returns -1 upon failure, or 0 if successful.
+int pipeStdin(int *pipe);
+
+// Sets stdout to point to the writing end of the specified pipe.
+// *pipe is a pair of int pointers, obtained from pipe().
+// Returns -1 upon failure, or 0 if successful.
+int pipeStdout(int *pipe);
 
 // Finds the last non-whitespace character in the string and replaces
 // it with a null.
@@ -98,13 +129,25 @@ int main(int argc, char const *argv[])
 		if (doFork) {
 			// Run the command and wait for it to complete.
 			int p_id = fork();
-			if (p_id == 0) {
+			if (p_id < 0) {
+				perror(ERRMSG_FORK_FAILED);
+				exit(FORK_FAILED);
+
+			} else if (p_id == 0) {
 				char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
 
 				if (arguments == NULL) {
 					fputs("Could not allocate space for arguments...", stderr);
+
 				} else {
-					if (doRedirects(tokens, arguments) != 0) {
+					char **processTokens;
+					int setupPipesSuccess = setupPipesAndFork(tokens, &processTokens);
+					if (setupPipesSuccess != 0) {
+						fputs("Setting up pipes between processes failed.\n", stderr);
+						exit(setupPipesSuccess);
+					}
+
+					if (doRedirects(processTokens, arguments) != 0) {
 						fputs("There was an error parsing the arguments.\n", stderr);
 					}
 
@@ -114,11 +157,11 @@ int main(int argc, char const *argv[])
 					free(arguments);
 					exit(EXEC_FAILED);
 				}
+
 			} else {
 				wait(NULL);
 			}
 		}
-
 	}
 
 	free(input);
@@ -177,6 +220,19 @@ int doRedirects(char **tokens, char **arguments) {
 	return 0;
 }
 
+
+void findLastPipedCommand(char **tokens, char ***thisProcTokens) {
+	char **commandBegin = tokens;
+	for (; *tokens != NULL; ++tokens) {
+		if (strcmp(*tokens, PIPE_DELIMITER) == 0) {
+			commandBegin = ++tokens;
+		}
+	}
+
+	*thisProcTokens = commandBegin;
+}
+
+
 int stringArraySize(char **array) {
 	size_t size = 0;
 	for (; *array != NULL; ++size, ++array)
@@ -224,3 +280,68 @@ void nullifyTrailingWhitespace(char *string)
 	}
 }
 
+int pipeStdout(int *pipe) {
+	if (dup2(pipe[FILE_INDEX_STDOUT], FILE_INDEX_STDOUT) != FILE_INDEX_STDOUT) {
+		fprintf(stderr, "Failed to pipe stdout.");
+		return -1;
+	}
+	if (close(pipe[FILE_INDEX_STDIN]) == -1) {
+		fprintf(stderr, "Failed to close unused pipe stdin.");
+		return -1;
+	}
+	return 0;
+}
+
+int pipeStdin(int *pipe) {
+	if (dup2(pipe[FILE_INDEX_STDIN], FILE_INDEX_STDIN) != FILE_INDEX_STDIN) {
+		fprintf(stderr, "Failed to pipe stdin.");
+		return -1;
+	}
+	if (close(pipe[FILE_INDEX_STDOUT]) == -1) {
+		fprintf(stderr, "Failed to close unused pipe stdout.");
+		return -1;
+	}
+	return 0;
+}
+
+int setupPipesAndFork(char **tokens, char ***processTokens) {
+	findLastPipedCommand(tokens, processTokens);
+
+	// Do we need to pipe?
+	while (tokens != *processTokens) {
+		int processPipe[2];
+		if (pipe(processPipe) != 0) {
+			fputs("Error creating pipe.\n", stderr);
+			return PIPE_FAILED;
+		}
+
+		int chain_pid = fork();
+
+		if (chain_pid < 0) {
+			perror(ERRMSG_FORK_FAILED);
+			return FORK_FAILED;
+
+		} else if (chain_pid != 0) {
+			// We must redirect stdout to the pipe...
+			if (pipeStdout(processPipe) == -1) {
+				return PIPE_FAILED;
+			}
+
+			// Since the parent will be running the last processed
+			// command, let's shift the end of the tokens so that
+			// we don't re-run the same command.
+			*(*processTokens - 1) = NULL;
+			findLastPipedCommand(tokens, processTokens);
+
+		} else {
+			// We are the parent, i.e. we are on the receiving end of
+			// the pipe.
+			if (pipeStdin(processPipe) == -1) {
+				return PIPE_FAILED;
+			}
+			// We are now ready to exec.
+			break;
+		}
+	}
+	return 0;
+}

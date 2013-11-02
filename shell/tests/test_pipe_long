@@ -1,0 +1,2 @@
+echo You should see 2, the # of directories in the cwd.
+ls -l | grep ^d.* | cat | wc -l
