@@ -190,7 +190,8 @@ int main(int argc, char const *argv[])
 					while ((wait_pid = wait(&status)) != p_id) {
 						// Do nothing...
 					}
-					
+					fflush(stdout);
+					fflush(stderr);
 				}
 			}
 		}
