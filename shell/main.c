@@ -126,75 +126,83 @@ int main(int argc, char const *argv[])
 
 		fputs(prompt, stdout);
 		if (fgets(input, INPUT_BUFFERSIZE, stdin) == NULL) {
-			// This means that the user issued a SIGINT, so we forget about the
-			// current input and ask for a new prompt...
+			if (feof(stdin) == 0) {
+				// This means that the user issued a SIGINT, so we forget about the
+				// current input and ask for a new prompt...
+				strcpy(input, "\n");
+			} else {
+				// We are at EOF.  Tell the user that we're exiting...
+				fputs("exit", stdout);
+				strcpy(input, "exit");
+			}
 			// Put a newline so that the prompt doesn't get mixed up with the
 			// current line's input.
-			fputc('\n', stdout);
-		} else {
-			// Trailing whitespace causes problems with exec...
-			nullifyTrailingWhitespace(input);
+			putc('\n', stdout);
+		}
 
-			if (tokenize(input, tokens, TOKEN_BUFFERSIZE) != 0)
-			{
-				fputs("Not all tokens were tokenized successfully.\n", stderr);
-				doFork = 0;
-			}
+		// Trailing whitespace causes problems with exec...
+		nullifyTrailingWhitespace(input);
 
-			if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
-				exit(0);
-			}
+		if (tokenize(input, tokens, TOKEN_BUFFERSIZE) != 0)
+		{
+			fputs("Not all tokens were tokenized successfully.\n", stderr);
+			doFork = 0;
+		}
 
-			// Is there even a command to run?
-			doFork &= strncmp(tokens[0], "\n", 1) != 0;
-			if (doFork) {
-				// Run the command and wait for it to complete.
-				int p_id = fork();
-				if (p_id < 0) {
-					perror(ERRMSG_FORK_FAILED);
+		if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
+			exit(0);
+		}
+
+		// Is there even a command to run?
+		doFork &= strncmp(tokens[0], "\n", 1) != 0;
+		if (doFork) {
+			// Run the command and wait for it to complete.
+			int p_id = fork();
+			if (p_id < 0) {
+				perror(ERRMSG_FORK_FAILED);
+				exit(FORK_FAILED);
+
+			} else if (p_id == 0) {
+				int my_pid = getpid();
+				if (setpgid(my_pid, my_pid) != 0) {
+					perror("Change process group");
 					exit(FORK_FAILED);
+				}
+				char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
 
-				} else if (p_id == 0) {
-					int my_pid = getpid();
-					if (setpgid(my_pid, my_pid) != 0) {
-						perror("Change process group");
-						exit(FORK_FAILED);
-					}
-					char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
-
-					if (arguments == NULL) {
-						fputs("Could not allocate space for arguments...", stderr);
-
-					} else {
-						char **processTokens;
-						int setupPipesSuccess = setupPipesAndFork(tokens, &processTokens);
-						if (setupPipesSuccess != 0) {
-							fputs("Setting up pipes between processes failed.\n", stderr);
-							exit(setupPipesSuccess);
-						}
-
-						if (doRedirects(processTokens, arguments) != 0) {
-							fputs("There was an error parsing the arguments.\n", stderr);
-						}
-
-						execvp(arguments[0], arguments);
-						perror(argv[0]);
-						
-						free(arguments);
-						exit(EXEC_FAILED);
-					}
+				if (arguments == NULL) {
+					fputs("Could not allocate space for arguments...", stderr);
 
 				} else {
-					int status;
-					int wait_pid;
-					while ((wait_pid = wait(&status)) != p_id) {
-						// Do nothing...
+					char **processTokens;
+					int setupPipesSuccess = setupPipesAndFork(tokens, &processTokens);
+					if (setupPipesSuccess != 0) {
+						fputs("Setting up pipes between processes failed.\n", stderr);
+						exit(setupPipesSuccess);
 					}
-					fflush(stdout);
-					fflush(stderr);
+
+					if (doRedirects(processTokens, arguments) != 0) {
+						fputs("There was an error parsing the arguments.\n", stderr);
+					}
+
+					execvp(arguments[0], arguments);
+					perror(argv[0]);
+					
+					free(arguments);
+					exit(EXEC_FAILED);
 				}
+
+			} else {
+				int status;
+				int wait_pid;
+				while ((wait_pid = wait(&status)) != p_id) {
+					// Do nothing...
+				}
+				fflush(stdout);
+				fflush(stderr);
 			}
 		}
+
 	}
 	free(input);
 	free(prompt);
