@@ -39,6 +39,13 @@ int SIGACTION_ERROR = 5;
 char *ERRMSG_FORK_FAILED = "Fork failed";
 
 /* ----------------------------------------------
+Global Variables
+-----------------------------------------------*/
+// The currently running process group ID.
+// 0 means no process group is being run in this shell.
+int active_pgid = 0;
+
+/* ----------------------------------------------
 Function prototypes 
 -----------------------------------------------*/
 
@@ -193,11 +200,18 @@ int main(int argc, char const *argv[])
 				}
 
 			} else {
+				// Indicate that we're running something, so
+				// that signals that the user sends to this
+				// process are propagated there.
+				active_pgid = p_id;
 				int status;
 				int wait_pid;
 				while ((wait_pid = wait(&status)) != p_id) {
 					// Do nothing...
 				}
+				// Indicate that we're no longer running
+				// anything...
+				active_pgid = 0;
 				fflush(stdout);
 				fflush(stderr);
 			}
@@ -387,7 +401,13 @@ int setupPipesAndFork(char **tokens, char ***processTokens) {
 }
 
 void handleSIGINT(int signum) {
-
+	if (active_pgid != 0) {
+		// Only propagate a signal if there is an actively running
+		// process group that we're waiting on.
+		if (kill(-active_pgid, signum) != 0) {
+			perror("kill");
+		}
+	}
 }
 
 
