@@ -35,6 +35,7 @@ int EXEC_FAILED = 2;
 int PIPE_FAILED = 3;
 int FORK_FAILED = 4;
 int SIGACTION_ERROR = 5;
+int FOREGROUND_SWAP_ERROR = 6;
 
 char *ERRMSG_FORK_FAILED = "Fork failed";
 
@@ -200,15 +201,52 @@ int main(int argc, char const *argv[])
 				}
 
 			} else {
+
 				// Indicate that we're running something, so
 				// that signals that the user sends to this
 				// process are propagated there.
 				active_pgid = p_id;
+
+				// Change child process group to be the foreground
+				// process
+
+				// We need to block SIGTTOU since it is sent when we
+				// are giving away foreground status to a child process
+				// by calling tcsetpgrp.
+				struct sigaction oldSigactionSIGTTOU;
+				struct sigaction newSigactionSIGTTOU;
+				newSigactionSIGTTOU.sa_handler = SIG_IGN;
+
+				if (sigaction(SIGTTOU, &newSigactionSIGTTOU, &oldSigactionSIGTTOU) != 0) {
+					perror("Foreground");
+					exit(SIGACTION_ERROR);
+				}
+
+				pid_t oldActivePgid = tcgetpgrp(0);
+				if (tcsetpgrp(0, p_id) != 0) {
+					perror("Background");
+					exit(FOREGROUND_SWAP_ERROR);
+				}
+
 				int status;
 				int wait_pid;
+
 				while ((wait_pid = wait(&status)) != p_id) {
 					// Do nothing...
 				}
+
+				// We are done, restore foreground status and stop
+				// ignoring SIGTTOU.
+				if (tcsetpgrp(0, oldActivePgid) != 0) {
+					perror("Foreground");
+					exit(FOREGROUND_SWAP_ERROR);
+				}
+
+				if (sigaction(SIGTTOU, &oldSigactionSIGTTOU, NULL) != 0) {
+					perror("Foreground");
+					exit(SIGACTION_ERROR);
+				}
+
 				// Indicate that we're no longer running
 				// anything...
 				active_pgid = 0;
