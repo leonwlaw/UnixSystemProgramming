@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <glob.h>
 
 /* ----------------------------------------------
 Constants
@@ -62,7 +63,7 @@ int stringArraySize(char **array);
 // Tokenizes the string as much as the buffer allows.
 // If the buffer size is insufficient to store all the tokens,
 // this function will return 1.
-int tokenize(char *string, char **tokens, int buffersize);
+int tokenize(char *string, glob_t *globbuf);
 
 // Returns 1 if failed to redirect stdin.
 int doRedirects(char **tokens, char **arguments);
@@ -99,9 +100,8 @@ Main
 int main(int argc, char const *argv[])
 {
 	char *input = malloc(sizeof(char) * INPUT_BUFFERSIZE);
-	char **tokens = malloc(sizeof(char *) * TOKEN_BUFFERSIZE);
 
-	if (input == NULL || tokens == NULL) {
+	if (input == NULL) {
 		fputs("Not enough memory.", stderr);
 		exit(NOT_ENOUGH_MEMORY);
 	}
@@ -115,6 +115,9 @@ int main(int argc, char const *argv[])
 		}
 		strncpy(prompt, DEFAULT_PROMPT, PROMPT_BUFFERSIZE);
 	}
+
+	// This is where we'll store the parsed argument tokens
+	glob_t globbuf;
 
 	struct sigaction oldSigaction;
 	struct sigaction newSigaction;
@@ -151,11 +154,13 @@ int main(int argc, char const *argv[])
 		// Trailing whitespace causes problems with exec...
 		nullifyTrailingWhitespace(input);
 
-		if (tokenize(input, tokens, TOKEN_BUFFERSIZE) != 0)
+		if (tokenize(input, &globbuf) != 0)
 		{
 			fputs("Not all tokens were tokenized successfully.\n", stderr);
 			doFork = 0;
 		}
+
+		char **tokens = &globbuf.gl_pathv[0];
 
 		if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
 			exit(0);
@@ -256,6 +261,8 @@ int main(int argc, char const *argv[])
 		}
 
 	}
+
+	globfree(&globbuf);
 	free(input);
 	free(prompt);
 	return 0;
@@ -332,25 +339,23 @@ int stringArraySize(char **array) {
 	return size;
 }
 
-int tokenize(char *string, char **tokens, int buffersize) {
+int tokenize(char *string, glob_t *globbuf) {
 	// Make sure we leave space for the terminating NULL.
-	char ** lastElement = tokens + buffersize - 1;
 	char *token;
+	int firstToken = 1;
+	int globSuccess;
 	for (token = strtok(string, TOKEN_DELIMITERS);
 		// Last spot in the token buffer is reserved for NULL
-		token != NULL && tokens < lastElement;
-		token = strtok(NULL, TOKEN_DELIMITERS), tokens++)
+		token != NULL;
+		token = strtok(NULL, TOKEN_DELIMITERS))
 	{
-		*tokens = token;
+		int globflags = firstToken ? GLOB_NOCHECK : GLOB_NOCHECK | GLOB_APPEND;
+		if ((globSuccess = glob(token, globflags, NULL, globbuf)) != 0) {
+			fprintf(stderr, "Glob failed with return value %d\n", globSuccess);
+		}
+		firstToken &= 0;
 	}
 
-	// Mark the end of the tokens
-	*tokens = NULL;
-
-	// Did we tokenize everything?
-	if (token != NULL) {
-		return 1;
-	}
 	return 0;
 }
 
