@@ -228,9 +228,11 @@ int main(int argc, char const *argv[])
 				}
 
 				pid_t oldActivePgid = tcgetpgrp(0);
-				if (tcsetpgrp(0, p_id) != 0) {
-					perror("Background");
-					exit(FOREGROUND_SWAP_ERROR);
+				if (oldActivePgid != -1) {
+					if (tcsetpgrp(0, p_id) != 0) {
+						perror("Background");
+						exit(FOREGROUND_SWAP_ERROR);
+					}
 				}
 
 				int status;
@@ -240,11 +242,13 @@ int main(int argc, char const *argv[])
 					// Do nothing...
 				}
 
-				// We are done, restore foreground status and stop
-				// ignoring SIGTTOU.
-				if (tcsetpgrp(0, oldActivePgid) != 0) {
-					perror("Foreground");
-					exit(FOREGROUND_SWAP_ERROR);
+				if (oldActivePgid != -1) {
+					// We are done, restore foreground status and stop
+					// ignoring SIGTTOU.
+					if (tcsetpgrp(0, oldActivePgid) != 0) {
+						perror("Foreground");
+						exit(FOREGROUND_SWAP_ERROR);
+					}
 				}
 
 				if (sigaction(SIGTTOU, &oldSigactionSIGTTOU, NULL) != 0) {
