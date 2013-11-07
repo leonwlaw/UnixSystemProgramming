@@ -133,8 +133,6 @@ int main(int argc, char const *argv[])
 	// exit command.
 	while (1)
 	{
-		int doFork = 1;
-
 		fputs(prompt, stdout);
 		if (fgets(input, INPUT_BUFFERSIZE, stdin) == NULL) {
 			if (feof(stdin) == 0) {
@@ -157,113 +155,156 @@ int main(int argc, char const *argv[])
 		if (tokenize(input, &globbuf) != 0)
 		{
 			fputs("Not all tokens were tokenized successfully.\n", stderr);
-			doFork = 0;
 		}
 
+		int numTokens = globbuf.gl_pathc;
 		char **tokens = &globbuf.gl_pathv[0];
 
 		if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
 			exit(0);
 		}
 
-		// Is there even a command to run?
-		doFork &= strncmp(tokens[0], "\n", 1) != 0;
-		if (doFork) {
-			// Run the command and wait for it to complete.
-			int p_id = fork();
-			if (p_id < 0) {
-				perror(ERRMSG_FORK_FAILED);
-				exit(FORK_FAILED);
+		char **argStart = tokens;
+		char **argEnd = tokens;
 
-			} else if (p_id == 0) {
-				int my_pid = getpid();
-				if (setpgid(my_pid, my_pid) != 0) {
-					perror("Change process group");
-					exit(FORK_FAILED);
+		int p_id;
+		int forkDone = 0;
+
+		// Figure out which commands constitute the next process group to run.
+		for (size_t i = 0; i < numTokens; ++i) {
+			int doFork = 0;
+			if (strcmp(*(tokens + i), "&") == 0) {
+				argEnd = tokens + i;
+				if (argStart == argEnd) {
+					fputs("supershell: syntax error\n", stderr);
+					// No reason to go onto the next command...
+					// At this point, any processes that we've run are
+					// backgrounded, so we don't have to wait for anyone
+					// *YET*.
+					break;
+				} else {
+					doFork = 1;
 				}
-				char **arguments = calloc(sizeof(char *), stringArraySize(tokens) + 1);
+			}
+			else if (i == numTokens - 1) {
+				argEnd = tokens + numTokens + 1;
+				doFork = 1;
+			}
 
-				if (arguments == NULL) {
-					fputs("Could not allocate space for arguments...", stderr);
+			// Is there even a command to run?
+			doFork &= (*argStart != NULL) && (strcmp(argStart[0], "\n") != 0);
+			if (doFork) {
+				p_id = fork();
+
+				if (p_id < 0) {
+					perror(ERRMSG_FORK_FAILED);
+					exit(FORK_FAILED);
+
+				} else if (p_id == 0) {
+					int my_pid = getpid();
+					if (setpgid(my_pid, my_pid) != 0) {
+						perror("Change process group");
+						exit(FORK_FAILED);
+					}
+
+					char **arguments = calloc(sizeof(char *), argEnd - argStart + 1);
+
+					if (arguments == NULL) {
+						fputs("Could not allocate space for arguments...", stderr);
+
+					} else {
+						// Copy over the arguments so that we don't butcher the 
+						char **from, **to;
+						for (from = argStart, to = arguments;
+							from != argEnd;
+							++from, ++to) {
+
+							*to = *from;
+						}
+						*to = NULL;
+
+						char **processTokens;
+						int setupPipesSuccess = setupPipesAndFork(arguments, &processTokens);
+						if (setupPipesSuccess != 0) {
+							fputs("Setting up pipes between processes failed.\n", stderr);
+							exit(setupPipesSuccess);
+						}
+
+						if (doRedirects(processTokens, arguments) != 0) {
+							fputs("There was an error parsing the arguments.\n", stderr);
+						}
+
+						execvp(arguments[0], arguments);
+						perror(argv[0]);
+
+						free(arguments);
+						exit(EXEC_FAILED);
+					}
 
 				} else {
-					char **processTokens;
-					int setupPipesSuccess = setupPipesAndFork(tokens, &processTokens);
-					if (setupPipesSuccess != 0) {
-						fputs("Setting up pipes between processes failed.\n", stderr);
-						exit(setupPipesSuccess);
-					}
-
-					if (doRedirects(processTokens, arguments) != 0) {
-						fputs("There was an error parsing the arguments.\n", stderr);
-					}
-
-					execvp(arguments[0], arguments);
-					perror(argv[0]);
-					
-					free(arguments);
-					exit(EXEC_FAILED);
+					forkDone = 1;
 				}
-
-			} else {
-
-				// Indicate that we're running something, so
-				// that signals that the user sends to this
-				// process are propagated there.
-				active_pgid = p_id;
-
-				// Change child process group to be the foreground
-				// process
-
-				// We need to block SIGTTOU since it is sent when we
-				// are giving away foreground status to a child process
-				// by calling tcsetpgrp.
-				struct sigaction oldSigactionSIGTTOU;
-				struct sigaction newSigactionSIGTTOU;
-				newSigactionSIGTTOU.sa_handler = SIG_IGN;
-
-				if (sigaction(SIGTTOU, &newSigactionSIGTTOU, &oldSigactionSIGTTOU) != 0) {
-					perror("Foreground");
-					exit(SIGACTION_ERROR);
-				}
-
-				pid_t oldActivePgid = tcgetpgrp(0);
-				if (oldActivePgid != -1) {
-					if (tcsetpgrp(0, p_id) != 0) {
-						perror("Background");
-						exit(FOREGROUND_SWAP_ERROR);
-					}
-				}
-
-				int status;
-				int wait_pid;
-
-				while ((wait_pid = wait(&status)) != p_id) {
-					// Do nothing...
-				}
-
-				if (oldActivePgid != -1) {
-					// We are done, restore foreground status and stop
-					// ignoring SIGTTOU.
-					if (tcsetpgrp(0, oldActivePgid) != 0) {
-						perror("Foreground");
-						exit(FOREGROUND_SWAP_ERROR);
-					}
-				}
-
-				if (sigaction(SIGTTOU, &oldSigactionSIGTTOU, NULL) != 0) {
-					perror("Foreground");
-					exit(SIGACTION_ERROR);
-				}
-
-				// Indicate that we're no longer running
-				// anything...
-				active_pgid = 0;
-				fflush(stdout);
-				fflush(stderr);
+				argStart = argEnd + 1;
 			}
 		}
+		if (forkDone) {
+			// Indicate that we're running something, so
+			// that signals that the user sends to this
+			// process are propagated there.
+			active_pgid = p_id;
 
+			// Change child process group to be the foreground
+			// process
+
+			// We need to block SIGTTOU since it is sent when we
+			// are giving away foreground status to a child process
+			// by calling tcsetpgrp.
+			struct sigaction oldSigactionSIGTTOU;
+			struct sigaction newSigactionSIGTTOU;
+			sigemptyset(&newSigactionSIGTTOU.sa_mask);
+			newSigactionSIGTTOU.sa_flags = 0;
+			newSigactionSIGTTOU.sa_handler = SIG_IGN;
+
+			if (sigaction(SIGTTOU, &newSigactionSIGTTOU, &oldSigactionSIGTTOU) != 0) {
+				perror("Foreground");
+				exit(SIGACTION_ERROR);
+			}
+
+			pid_t oldActivePgid = tcgetpgrp(0);
+			if (oldActivePgid != -1) {
+				if (tcsetpgrp(0, p_id) != 0) {
+					perror("Background");
+					exit(FOREGROUND_SWAP_ERROR);
+				}
+			}
+
+			int status;
+			int wait_pid;
+
+			while ((wait_pid = wait(&status)) != p_id) {
+				// Do nothing...
+			}
+
+			if (oldActivePgid != -1) {
+				// We are done, restore foreground status and stop
+				// ignoring SIGTTOU.
+				if (tcsetpgrp(0, oldActivePgid) != 0) {
+					perror("Foreground");
+					exit(FOREGROUND_SWAP_ERROR);
+				}
+			}
+
+			if (sigaction(SIGTTOU, &oldSigactionSIGTTOU, NULL) != 0) {
+				perror("Foreground");
+				exit(SIGACTION_ERROR);
+			}
+
+			// Indicate that we're no longer running
+			// anything...
+			active_pgid = 0;
+			fflush(stdout);
+			fflush(stderr);
+		}
 	}
 
 	globfree(&globbuf);
