@@ -370,6 +370,7 @@ int doRedirects(char **tokens, char **arguments) {
 			++arguments;
 		}
 	}
+	*arguments = NULL;
 	return 0;
 }
 
