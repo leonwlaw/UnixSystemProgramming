@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <glob.h>
 
@@ -173,6 +174,8 @@ int main(int argc, char const *argv[])
 		int lastPid;
 		int forkDone = 0;
 		int lastBackgrounded = 0;
+		int processStatus;
+		int terminatedPid;
 
 		// Figure out which commands constitute the next process group to run.
 		for (size_t i = 0; i < numTokens; ++i) {
@@ -287,10 +290,7 @@ int main(int argc, char const *argv[])
 				}
 			}
 
-			int status;
-			int wait_pid;
-
-			while ((wait_pid = wait(&status)) != lastPid) {
+			while ((terminatedPid = waitpid(lastPid, &processStatus, 0)) != lastPid) {
 				// Do nothing...
 			}
 
@@ -313,6 +313,15 @@ int main(int argc, char const *argv[])
 			active_pgid = 0;
 			fflush(stdout);
 			fflush(stderr);
+		}
+		while ((terminatedPid = waitpid(-1, &processStatus, WNOHANG)) != 0) {
+			// This is fine, as we don't have a good way of keeping track of
+			// how many children we're waiting on...
+			if (terminatedPid == -1 && errno == ECHILD) {
+				errno = 0;
+				break;
+			}
+			fprintf(stdout, "Process %d has terminated.\n", terminatedPid);
 		}
 	}
 
