@@ -47,6 +47,9 @@ Global Variables
 // 0 means no process group is being run in this shell.
 int active_pgid = 0;
 
+// The next background job ID to use.
+int nextjobID = 0;
+
 /* ----------------------------------------------
 Function prototypes 
 -----------------------------------------------*/
@@ -167,8 +170,9 @@ int main(int argc, char const *argv[])
 		char **argStart = tokens;
 		char **argEnd = tokens;
 
-		int p_id;
+		int lastPid;
 		int forkDone = 0;
+		int lastBackgrounded = 0;
 
 		// Figure out which commands constitute the next process group to run.
 		for (size_t i = 0; i < numTokens; ++i) {
@@ -184,23 +188,25 @@ int main(int argc, char const *argv[])
 					break;
 				} else {
 					doFork = 1;
+					lastBackgrounded = 1;
 				}
 			}
 			else if (i == numTokens - 1) {
 				argEnd = tokens + numTokens + 1;
 				doFork = 1;
+				lastBackgrounded = 0;
 			}
 
 			// Is there even a command to run?
 			doFork &= (*argStart != NULL) && (strcmp(argStart[0], "\n") != 0);
 			if (doFork) {
-				p_id = fork();
+				lastPid = fork();
 
-				if (p_id < 0) {
+				if (lastPid < 0) {
 					perror(ERRMSG_FORK_FAILED);
 					exit(FORK_FAILED);
 
-				} else if (p_id == 0) {
+				} else if (lastPid == 0) {
 					int my_pid = getpid();
 					if (setpgid(my_pid, my_pid) != 0) {
 						perror("Change process group");
@@ -243,15 +249,18 @@ int main(int argc, char const *argv[])
 
 				} else {
 					forkDone = 1;
+					if (lastBackgrounded) {
+						fprintf(stdout, "[%i] %d\n", nextjobID++, lastPid);
+					}
 				}
 				argStart = argEnd + 1;
 			}
 		}
-		if (forkDone) {
+		if (forkDone && !lastBackgrounded) {
 			// Indicate that we're running something, so
 			// that signals that the user sends to this
 			// process are propagated there.
-			active_pgid = p_id;
+			active_pgid = lastPid;
 
 			// Change child process group to be the foreground
 			// process
@@ -272,7 +281,7 @@ int main(int argc, char const *argv[])
 
 			pid_t oldActivePgid = tcgetpgrp(0);
 			if (oldActivePgid != -1) {
-				if (tcsetpgrp(0, p_id) != 0) {
+				if (tcsetpgrp(0, lastPid) != 0) {
 					perror("Background");
 					exit(FOREGROUND_SWAP_ERROR);
 				}
@@ -281,7 +290,7 @@ int main(int argc, char const *argv[])
 			int status;
 			int wait_pid;
 
-			while ((wait_pid = wait(&status)) != p_id) {
+			while ((wait_pid = wait(&status)) != lastPid) {
 				// Do nothing...
 			}
 
