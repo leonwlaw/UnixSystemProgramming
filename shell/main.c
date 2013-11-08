@@ -186,9 +186,17 @@ int main(int argc, char const *argv[])
 		char **argStart = tokens;
 		char **argEnd = tokens;
 
+		// This is the last PID of the processes we start. If it is not
+		// backgrounded, this is also the pgid of the process group we
+		// need to wait for.
 		int lastPid;
-		int forkDone = false;
+
+		// This controls if we need to wait for the last executed
+		// process group.  This is determined by the presence of a '&'
+		// token.
 		int lastBackgrounded = false;
+
+		int forkDone = false;
 
 		// We'll use this to figure out which processes we should wait
 		// for.  Processes that will be backgrounded should close all
