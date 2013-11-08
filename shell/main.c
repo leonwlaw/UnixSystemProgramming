@@ -98,6 +98,9 @@ void nullifyTrailingWhitespace(char *string);
 // are waiting on, if one exists.
 void propagateSignalToChildProcesses(int signal);
 
+// Sets up signal propagation so that signals relevant signals are sent
+// to the current running child process that we are actively waiting for
+void setupSignalPropagationToChild();
 
 /* ----------------------------------------------
 Main
@@ -124,20 +127,7 @@ int main(int argc, char const *argv[])
 	// This is where we'll store the parsed argument tokens
 	glob_t globbuf;
 
-	struct sigaction oldSigaction;
-	struct sigaction newSigaction;
-	sigemptyset(&newSigaction.sa_mask);
-	newSigaction.sa_flags = 0;
-	newSigaction.sa_handler = propagateSignalToChildProcesses;
-	if (sigaction(SIGINT, &newSigaction, &oldSigaction) != 0) {
-		perror("sigaction: sigint");
-		exit(SIGACTION_ERROR);
-	}
-
-	if (sigaction(SIGQUIT, &newSigaction, &oldSigaction) != 0) {
-		perror("sigaction: sigquit");
-		exit(SIGACTION_ERROR);
-	}
+	setupSignalPropagationToChild();
 
 	// We should keep the user in the loop until they type the
 	// exit command.
@@ -523,4 +513,20 @@ void propagateSignalToChildProcesses(int signum) {
 	}
 }
 
+void setupSignalPropagationToChild() {
+	struct sigaction oldSigaction;
+	struct sigaction newSigaction;
+	sigemptyset(&newSigaction.sa_mask);
+	newSigaction.sa_flags = 0;
+	newSigaction.sa_handler = propagateSignalToChildProcesses;
+	if (sigaction(SIGINT, &newSigaction, &oldSigaction) != 0) {
+		perror("sigaction: sigint");
+		exit(SIGACTION_ERROR);
+	}
+
+	if (sigaction(SIGQUIT, &newSigaction, &oldSigaction) != 0) {
+		perror("sigaction: sigquit");
+		exit(SIGACTION_ERROR);
+	}
+}
 
