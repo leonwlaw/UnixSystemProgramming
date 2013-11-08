@@ -132,6 +132,12 @@ void waitForProcessGroup(int pgrpid, int pidPipe[]);
 // Waits for any backgrounded children to dezombify them.
 void waitForBackgroundedChildren();
 
+// Interpret the arguments argStart - argEnd as a command, and run it.
+// argStart and argEnd should be part of a contiguous block in the same
+// array, where argStart comes before argEnd.
+void parseArgumentsAndExec(
+	char **argStart, char **argEnd);
+
 /* ----------------------------------------------
 Main
 -----------------------------------------------*/
@@ -229,50 +235,18 @@ int main(int argc, char const *argv[])
 						perror("Change process group");
 						exit(FORK_FAILED);
 					}
-
-					char **arguments = calloc(sizeof(char *), argEnd - argStart + 1);
-
-					if (arguments == NULL) {
-						fputs("Could not allocate space for arguments...", stderr);
-
-					} else {
-						// Copy over the arguments so that we don't butcher the 
-						char **from, **to;
-						for (from = argStart, to = arguments;
-							from != argEnd;
-							++from, ++to) {
-
-							*to = *from;
-						}
-						*to = NULL;
-
-						char **processTokens;
-						int setupPipesSuccess = setupPipesAndFork(arguments, &processTokens);
-						if (setupPipesSuccess != 0) {
-							fputs("Setting up pipes between processes failed.\n", stderr);
-							exit(setupPipesSuccess);
-						}
-
-						if (doRedirects(processTokens, arguments) != 0) {
-							fputs("There was an error parsing the arguments.\n", stderr);
-						}
-
-						// Tell the master shell process our PID so it
-						// knows to wait for us...
-						if (!lastBackgrounded) {
-							my_pid = getpid();
-							write(pidPipe[1], &my_pid, sizeof(my_pid));
-						}
-						// If we don't close, the parent will block forever...
-						close(pidPipe[0]);
-						close(pidPipe[1]);
-
-						execvp(arguments[0], arguments);
-						perror(argv[0]);
-
-						free(arguments);
-						exit(EXEC_FAILED);
+					
+					// Tell the master shell process our PID so it
+					// knows to wait for us...
+					if (!lastBackgrounded) {
+						int my_pid = getpid();
+						write(pidPipe[1], &my_pid, sizeof(my_pid));
 					}
+					// If we don't close, the parent will block forever...
+					close(pidPipe[0]);
+					close(pidPipe[1]);
+
+					parseArgumentsAndExec(argStart, argEnd);
 
 				} else {
 					forkDone = true;
@@ -612,6 +586,42 @@ void waitForBackgroundedChildren() {
 			break;
 		}
 		fprintf(stdout, "Process %d has terminated.\n", terminatedPid);
+	}
+}
+
+void parseArgumentsAndExec(char **argStart, char **argEnd) {
+	char **arguments = calloc(sizeof(char *), argEnd - argStart + 1);
+
+	if (arguments == NULL) {
+		fputs("Could not allocate space for arguments...", stderr);
+
+	} else {
+		// Copy over the arguments so that we don't butcher the original
+		char **from, **to;
+		for (from = argStart, to = arguments;
+			from != argEnd;
+			++from, ++to) {
+
+			*to = *from;
+		}
+		*to = NULL;
+
+		char **processTokens;
+		int setupPipesSuccess = setupPipesAndFork(arguments, &processTokens);
+		if (setupPipesSuccess != 0) {
+			fputs("Setting up pipes between processes failed.\n", stderr);
+			exit(setupPipesSuccess);
+		}
+
+		if (doRedirects(processTokens, arguments) != 0) {
+			fputs("There was an error parsing the arguments.\n", stderr);
+		}
+
+		execvp(arguments[0], arguments);
+		perror("supershell");
+
+		free(arguments);
+		exit(EXEC_FAILED);
 	}
 }
 
