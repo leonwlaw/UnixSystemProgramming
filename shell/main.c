@@ -196,6 +196,10 @@ int main(int argc, char const *argv[])
 		// token.
 		int lastBackgrounded = false;
 
+		// Used to tell if we actually forked.  This is used to
+		// determine if we need to change the foreground process group,
+		// as we'll encounter an error if we change to an nonexistant
+		// process group.
 		int forkDone = false;
 
 		// We'll use this to figure out which processes we should wait
