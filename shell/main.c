@@ -30,6 +30,8 @@ char *PIPE_DELIMITER = "|";
 char *DEFAULT_PROMPT = "> ";
 char *EXIT_COMMAND = "exit";
 
+char *COMMAND_DO_NOTHING[] = {"\n", NULL};
+
 int FILE_INDEX_STDIN = 0;
 int FILE_INDEX_STDOUT = 1;
 
@@ -65,10 +67,9 @@ void findLastPipedCommand(char **tokens, char ***thisProcTokens);
 // Calculates the length of the string array.
 int stringArraySize(char **array);
 
-// Tokenizes the string as much as the buffer allows.
-// If the buffer size is insufficient to store all the tokens,
-// this function will return 1.
-int tokenize(char *string, glob_t *globbuf);
+// Tokenizes the string and performs globbing as needed.
+void globAndTokenize(
+	char *string, glob_t *globbuf, int *numTokens, char ***tokens);
 
 // Returns 1 if failed to redirect stdin.
 int doRedirects(char **tokens, char **arguments);
@@ -163,13 +164,10 @@ int main(int argc, char const *argv[])
 		// Trailing whitespace causes problems with exec...
 		nullifyTrailingWhitespace(input);
 
-		if (tokenize(input, &globbuf) != 0)
-		{
-			fputs("Not all tokens were tokenized successfully.\n", stderr);
-		}
+		int numTokens;
+		char **tokens;
 
-		int numTokens = globbuf.gl_pathc;
-		char **tokens = &globbuf.gl_pathv[0];
+		globAndTokenize(input, &globbuf, &numTokens, &tokens);
 
 		if (strcmp(tokens[0], EXIT_COMMAND) == 0) {
 			exit(0);
@@ -348,7 +346,8 @@ int stringArraySize(char **array) {
 	return size;
 }
 
-int tokenize(char *string, glob_t *globbuf) {
+void globAndTokenize(
+	char *string, glob_t *globbuf, int *numTokens, char ***tokens) {
 	// Make sure we leave space for the terminating NULL.
 	char *token;
 	int firstToken = true;
@@ -360,12 +359,19 @@ int tokenize(char *string, glob_t *globbuf) {
 	{
 		int globflags = firstToken ? GLOB_NOCHECK : GLOB_NOCHECK | GLOB_APPEND;
 		if ((globSuccess = glob(token, globflags, NULL, globbuf)) != 0) {
-			fprintf(stderr, "Glob failed with return value %d\n", globSuccess);
+			fputs("Not all tokens were tokenized successfully.\n", stderr);
+			break;
 		}
 		firstToken &= false;
 	}
 
-	return 0;
+	if (globSuccess != 0) {
+		*numTokens = 1;
+		*tokens = &COMMAND_DO_NOTHING[0];
+	} else {
+		*numTokens = globbuf->gl_pathc;
+		*tokens = &globbuf->gl_pathv[0];
+	}
 }
 
 
