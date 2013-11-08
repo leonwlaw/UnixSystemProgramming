@@ -107,6 +107,20 @@ void setupSignalPropagationToChild();
 // isn't butchered. (i.e. due to signals signals, like SIGINT)
 void getCommandWithPrompt(char *input, char *prompt);
 
+// Change foreground status to a child that we started.
+// childpid is the child's PID. oldActivePgid and oldSigaction will be
+// modified to reflect the process's status prior to calling this
+// function, which can be passed to restoreForegroundToSelf later to
+// undo this function's effects.
+void changeForegroundToChild(
+	pid_t childpid, int *oldActivePgid, struct sigaction *oldSigaction);
+
+// Restore foreground process status back to ourself.
+// oldActivePgid and oldsigaction should be arguments obtained from
+// calling changeForegroundToChild.
+void restoreForegroundToSelf(
+	int oldActivePgid, struct sigaction *oldsigaction);
+
 /* ----------------------------------------------
 Main
 -----------------------------------------------*/
@@ -247,57 +261,15 @@ int main(int argc, char const *argv[])
 			}
 		}
 		if (forkDone && !lastBackgrounded) {
-			// Indicate that we're running something, so
-			// that signals that the user sends to this
-			// process are propagated there.
-			active_pgid = lastPid;
-
-			// Change child process group to be the foreground
-			// process
-
-			// We need to block SIGTTOU since it is sent when we
-			// are giving away foreground status to a child process
-			// by calling tcsetpgrp.
-			struct sigaction oldSigactionSIGTTOU;
-			struct sigaction newSigactionSIGTTOU;
-			sigemptyset(&newSigactionSIGTTOU.sa_mask);
-			newSigactionSIGTTOU.sa_flags = 0;
-			newSigactionSIGTTOU.sa_handler = SIG_IGN;
-
-			if (sigaction(SIGTTOU, &newSigactionSIGTTOU, &oldSigactionSIGTTOU) != 0) {
-				perror("Foreground");
-				exit(SIGACTION_ERROR);
-			}
-
-			pid_t oldActivePgid = tcgetpgrp(0);
-			if (oldActivePgid != -1) {
-				if (tcsetpgrp(0, lastPid) != 0) {
-					perror("Background");
-					exit(FOREGROUND_SWAP_ERROR);
-				}
-			}
+			int oldActivePgid;
+			struct sigaction prebackgroundSigaction;
+			changeForegroundToChild(lastPid, &oldActivePgid, &prebackgroundSigaction);
 
 			while ((terminatedPid = waitpid(lastPid, &processStatus, 0)) != lastPid) {
 				// Do nothing...
 			}
 
-			if (oldActivePgid != -1) {
-				// We are done, restore foreground status and stop
-				// ignoring SIGTTOU.
-				if (tcsetpgrp(0, oldActivePgid) != 0) {
-					perror("Foreground");
-					exit(FOREGROUND_SWAP_ERROR);
-				}
-			}
-
-			if (sigaction(SIGTTOU, &oldSigactionSIGTTOU, NULL) != 0) {
-				perror("Foreground");
-				exit(SIGACTION_ERROR);
-			}
-
-			// Indicate that we're no longer running
-			// anything...
-			active_pgid = 0;
+			restoreForegroundToSelf(oldActivePgid, &prebackgroundSigaction);
 			fflush(stdout);
 			fflush(stderr);
 		}
@@ -538,5 +510,58 @@ void getCommandWithPrompt(char *input, char *prompt) {
 		// current line's input.
 		putc('\n', stdout);
 	}
+}
+
+
+void changeForegroundToChild(pid_t childpid, int *oldActivePgid, struct sigaction *prebackgroundSigaction) {
+	// Indicate that we're running something, so
+	// that signals that the user sends to this
+	// process are propagated there.
+	active_pgid = childpid;
+
+	// Change child process group to be the foreground
+	// process
+
+	// We need to block SIGTTOU since it is sent when we
+	// are giving away foreground status to a child process
+	// by calling tcsetpgrp.
+	struct sigaction newsigaction;
+	sigemptyset(&newsigaction.sa_mask);
+	newsigaction.sa_flags = 0;
+	newsigaction.sa_handler = SIG_IGN;
+
+	if (sigaction(SIGTTOU, &newsigaction, prebackgroundSigaction) != 0) {
+		perror("Foreground");
+		exit(SIGACTION_ERROR);
+	}
+
+	*oldActivePgid = tcgetpgrp(0);
+	if (*oldActivePgid != -1) {
+		if (tcsetpgrp(0, childpid) != 0) {
+			perror("Background");
+			exit(FOREGROUND_SWAP_ERROR);
+		}
+	}
+}
+
+
+void restoreForegroundToSelf(int oldActivePgid, struct sigaction *oldsigaction) {
+	if (oldActivePgid != -1) {
+		// We are done, restore foreground status and stop
+		// ignoring SIGTTOU.
+		if (tcsetpgrp(0, oldActivePgid) != 0) {
+			perror("Foreground");
+			exit(FOREGROUND_SWAP_ERROR);
+		}
+	}
+
+	if (sigaction(SIGTTOU, oldsigaction, NULL) != 0) {
+		perror("Foreground");
+		exit(SIGACTION_ERROR);
+	}
+
+	// Indicate that we're no longer running
+	// anything...
+	active_pgid = 0;
 }
 
