@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <stdbool.h>
 #include <fcntl.h>
 #include <glob.h>
 
@@ -140,11 +141,11 @@ int main(int argc, char const *argv[])
 
 	// We should keep the user in the loop until they type the
 	// exit command.
-	while (1)
+	while (true)
 	{
 		fputs(prompt, stdout);
 		if (fgets(input, INPUT_BUFFERSIZE, stdin) == NULL) {
-			if (feof(stdin) == 0) {
+			if (feof(stdin) == false) {
 				// This means that the user issued a SIGINT, so we forget about the
 				// current input and ask for a new prompt...
 				strcpy(input, "\n");
@@ -177,8 +178,8 @@ int main(int argc, char const *argv[])
 		char **argEnd = tokens;
 
 		int lastPid;
-		int forkDone = 0;
-		int lastBackgrounded = 0;
+		int forkDone = false;
+		int lastBackgrounded = false;
 		int processStatus;
 		int terminatedPid;
 
@@ -196,13 +197,13 @@ int main(int argc, char const *argv[])
 					break;
 				} else {
 					doFork = 1;
-					lastBackgrounded = 1;
+					lastBackgrounded = true;
 				}
 			}
 			else if (i == numTokens - 1) {
 				argEnd = tokens + numTokens + 1;
 				doFork = 1;
-				lastBackgrounded = 0;
+				lastBackgrounded = false;
 			}
 
 			// Is there even a command to run?
@@ -256,7 +257,7 @@ int main(int argc, char const *argv[])
 					}
 
 				} else {
-					forkDone = 1;
+					forkDone = true;
 					if (lastBackgrounded) {
 						fprintf(stdout, "[%i] %d\n", nextjobID++, lastPid);
 					}
@@ -411,7 +412,7 @@ int stringArraySize(char **array) {
 int tokenize(char *string, glob_t *globbuf) {
 	// Make sure we leave space for the terminating NULL.
 	char *token;
-	int firstToken = 1;
+	int firstToken = true;
 	int globSuccess;
 	for (token = strtok(string, TOKEN_DELIMITERS);
 		// Last spot in the token buffer is reserved for NULL
@@ -422,7 +423,7 @@ int tokenize(char *string, glob_t *globbuf) {
 		if ((globSuccess = glob(token, globflags, NULL, globbuf)) != 0) {
 			fprintf(stderr, "Glob failed with return value %d\n", globSuccess);
 		}
-		firstToken &= 0;
+		firstToken &= false;
 	}
 
 	return 0;
