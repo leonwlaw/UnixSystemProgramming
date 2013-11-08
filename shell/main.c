@@ -102,6 +102,11 @@ void propagateSignalToChildProcesses(int signal);
 // to the current running child process that we are actively waiting for
 void setupSignalPropagationToChild();
 
+// Obtains input from stdin.  It will also print out a prompt, and
+// output any necessary characters to ensure that the output to stdout
+// isn't butchered. (i.e. due to signals signals, like SIGINT)
+void getCommandWithPrompt(char *input, char *prompt);
+
 /* ----------------------------------------------
 Main
 -----------------------------------------------*/
@@ -133,21 +138,7 @@ int main(int argc, char const *argv[])
 	// exit command.
 	while (true)
 	{
-		fputs(prompt, stdout);
-		if (fgets(input, INPUT_BUFFERSIZE, stdin) == NULL) {
-			if (feof(stdin) == false) {
-				// This means that the user issued a SIGINT, so we forget about the
-				// current input and ask for a new prompt...
-				strcpy(input, "\n");
-			} else {
-				// We are at EOF.  Tell the user that we're exiting...
-				fputs("exit", stdout);
-				strcpy(input, "exit");
-			}
-			// Put a newline so that the prompt doesn't get mixed up with the
-			// current line's input.
-			putc('\n', stdout);
-		}
+		getCommandWithPrompt(input, prompt);
 
 		// Trailing whitespace causes problems with exec...
 		nullifyTrailingWhitespace(input);
@@ -527,6 +518,25 @@ void setupSignalPropagationToChild() {
 	if (sigaction(SIGQUIT, &newSigaction, &oldSigaction) != 0) {
 		perror("sigaction: sigquit");
 		exit(SIGACTION_ERROR);
+	}
+}
+
+
+void getCommandWithPrompt(char *input, char *prompt) {
+	fputs(prompt, stdout);
+	if (fgets(input, INPUT_BUFFERSIZE, stdin) == NULL) {
+		if (feof(stdin) == false) {
+			// This means that the user issued a SIGINT, so we forget about the
+			// current input and ask for a new prompt...
+			strcpy(input, "\n");
+		} else {
+			// We are at EOF.  Tell the user that we're exiting...
+			fputs("exit", stdout);
+			strcpy(input, "exit");
+		}
+		// Put a newline so that the prompt doesn't get mixed up with the
+		// current line's input.
+		putc('\n', stdout);
 	}
 }
 
