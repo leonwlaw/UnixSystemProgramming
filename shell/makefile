@@ -4,10 +4,10 @@
 all: supershell
 
 supershell: main.c
-	gcc -Wall -std=c99 main.c -o supershell
+	gcc -Wall -D_POSIX_C_SOURCE=1 -std=c99 main.c -o supershell
 
 debug: main.c
-	gcc -Wall -std=c99 -g main.c -o supershell
+	gcc -Wall -D_POSIX_C_SOURCE=1 -std=c99 -g main.c -o supershell
 
 test: supershell
 	@echo "-----------------------------"
