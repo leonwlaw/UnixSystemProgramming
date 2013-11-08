@@ -95,7 +95,7 @@ void nullifyTrailingWhitespace(char *string);
 // This function will handle SIGINTs so that they do not terminate
 // the shell.  It will instead terminate the current child that we
 // are waiting on, if one exists.
-void handleSIGINT(int signal);
+void propagateSignalToChildProcesses(int signal);
 
 
 /* ----------------------------------------------
@@ -127,9 +127,14 @@ int main(int argc, char const *argv[])
 	struct sigaction newSigaction;
 	sigemptyset(&newSigaction.sa_mask);
 	newSigaction.sa_flags = 0;
-	newSigaction.sa_handler = handleSIGINT;
+	newSigaction.sa_handler = propagateSignalToChildProcesses;
 	if (sigaction(SIGINT, &newSigaction, &oldSigaction) != 0) {
-		perror("sigaction");
+		perror("sigaction: sigint");
+		exit(SIGACTION_ERROR);
+	}
+
+	if (sigaction(SIGQUIT, &newSigaction, &oldSigaction) != 0) {
+		perror("sigaction: sigquit");
 		exit(SIGACTION_ERROR);
 	}
 
@@ -507,7 +512,7 @@ int setupPipesAndFork(char **tokens, char ***processTokens) {
 	return 0;
 }
 
-void handleSIGINT(int signum) {
+void propagateSignalToChildProcesses(int signum) {
 	if (active_pgid != 0) {
 		// Only propagate a signal if there is an actively running
 		// process group that we're waiting on.
