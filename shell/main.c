@@ -123,7 +123,11 @@ void restoreForegroundToSelf(
 	int oldActivePgid, struct sigaction *oldsigaction);
 
 // Wait for the specified process group to terminate.
-void waitForProcessGroup(int pgrpid);
+// pidPipe is a pipe that child processes that we're waiting for
+// will send their PID to. Child processes MUST close the writing end
+// after they are done. Additionally, we should have this end closed
+// as well.
+void waitForProcessGroup(int pgrpid, int pidPipe[]);
 
 // Waits for any backgrounded children to dezombify them.
 void waitForBackgroundedChildren();
@@ -180,6 +184,15 @@ int main(int argc, char const *argv[])
 		int forkDone = false;
 		int lastBackgrounded = false;
 
+		// We'll use this to figure out which processes we should wait
+		// for.  Processes that will be backgrounded should close all
+		// ends of this pipe.
+		int pidPipe[2];
+		if (pipe(pidPipe) != 0) {
+			fputs("Error creating child PID communication pipe.\n", stderr);
+			exit(PIPE_FAILED);
+		}
+
 		// Figure out which commands constitute the next process group to run.
 		for (size_t i = 0; i < numTokens; ++i) {
 			int doFork = 0;
@@ -207,11 +220,9 @@ int main(int argc, char const *argv[])
 			doFork &= (*argStart != NULL) && (strcmp(argStart[0], "\n") != 0);
 			if (doFork) {
 				lastPid = fork();
-
 				if (lastPid < 0) {
 					perror(ERRMSG_FORK_FAILED);
 					exit(FORK_FAILED);
-
 				} else if (lastPid == 0) {
 					int my_pid = getpid();
 					if (setpgid(my_pid, my_pid) != 0) {
@@ -246,6 +257,16 @@ int main(int argc, char const *argv[])
 							fputs("There was an error parsing the arguments.\n", stderr);
 						}
 
+						// Tell the master shell process our PID so it
+						// knows to wait for us...
+						if (!lastBackgrounded) {
+							my_pid = getpid();
+							write(pidPipe[1], &my_pid, sizeof(my_pid));
+						}
+						// If we don't close, the parent will block forever...
+						close(pidPipe[0]);
+						close(pidPipe[1]);
+
 						execvp(arguments[0], arguments);
 						perror(argv[0]);
 
@@ -262,10 +283,15 @@ int main(int argc, char const *argv[])
 				argStart = argEnd + 1;
 			}
 		}
+
+		// We don't need to write anything, since we're only interested
+		// in listening for PIDs.
+		close(pidPipe[1]);
 		if (forkDone && !lastBackgrounded) {
-			waitForProcessGroup(lastPid);
+			waitForProcessGroup(lastPid, pidPipe);
 		}
 		waitForBackgroundedChildren();
+		close(pidPipe[0]);
 	}
 
 	globfree(&globbuf);
@@ -557,15 +583,16 @@ void restoreForegroundToSelf(int oldActivePgid, struct sigaction *oldsigaction) 
 	active_pgid = 0;
 }
 
-void waitForProcessGroup(int pgrpid) {
+void waitForProcessGroup(int pgrpid, int pidPipe[]) {
 	int oldActivePgid;
-	int terminatedPid;
 	int processStatus;
 	struct sigaction prebackgroundSigaction;
 	changeForegroundToChild(pgrpid, &oldActivePgid, &prebackgroundSigaction);
 
-	while ((terminatedPid = waitpid(pgrpid, &processStatus, 0)) != pgrpid) {
-		// Do nothing...
+	// Wait for all children in the process group we're blocking on...
+	int child_pid;
+	while ((read(pidPipe[0], &child_pid, sizeof(0))) > 0) {
+		waitpid(child_pid, &processStatus, 0);
 	}
 
 	restoreForegroundToSelf(oldActivePgid, &prebackgroundSigaction);
