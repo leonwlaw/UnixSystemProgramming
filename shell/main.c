@@ -121,6 +121,12 @@ void changeForegroundToChild(
 void restoreForegroundToSelf(
 	int oldActivePgid, struct sigaction *oldsigaction);
 
+// Wait for the specified process group to terminate.
+void waitForProcessGroup(int pgrpid);
+
+// Waits for any backgrounded children to dezombify them.
+void waitForBackgroundedChildren();
+
 /* ----------------------------------------------
 Main
 -----------------------------------------------*/
@@ -175,8 +181,6 @@ int main(int argc, char const *argv[])
 		int lastPid;
 		int forkDone = false;
 		int lastBackgrounded = false;
-		int processStatus;
-		int terminatedPid;
 
 		// Figure out which commands constitute the next process group to run.
 		for (size_t i = 0; i < numTokens; ++i) {
@@ -261,27 +265,9 @@ int main(int argc, char const *argv[])
 			}
 		}
 		if (forkDone && !lastBackgrounded) {
-			int oldActivePgid;
-			struct sigaction prebackgroundSigaction;
-			changeForegroundToChild(lastPid, &oldActivePgid, &prebackgroundSigaction);
-
-			while ((terminatedPid = waitpid(lastPid, &processStatus, 0)) != lastPid) {
-				// Do nothing...
-			}
-
-			restoreForegroundToSelf(oldActivePgid, &prebackgroundSigaction);
-			fflush(stdout);
-			fflush(stderr);
+			waitForProcessGroup(lastPid);
 		}
-		while ((terminatedPid = waitpid(-1, &processStatus, WNOHANG)) != 0) {
-			// This is fine, as we don't have a good way of keeping track of
-			// how many children we're waiting on...
-			if (terminatedPid == -1 && errno == ECHILD) {
-				errno = 0;
-				break;
-			}
-			fprintf(stdout, "Process %d has terminated.\n", terminatedPid);
-		}
+		waitForBackgroundedChildren();
 	}
 
 	globfree(&globbuf);
@@ -563,5 +549,36 @@ void restoreForegroundToSelf(int oldActivePgid, struct sigaction *oldsigaction) 
 	// Indicate that we're no longer running
 	// anything...
 	active_pgid = 0;
+}
+
+void waitForProcessGroup(int pgrpid) {
+	int oldActivePgid;
+	int terminatedPid;
+	int processStatus;
+	struct sigaction prebackgroundSigaction;
+	changeForegroundToChild(pgrpid, &oldActivePgid, &prebackgroundSigaction);
+
+	while ((terminatedPid = waitpid(pgrpid, &processStatus, 0)) != pgrpid) {
+		// Do nothing...
+	}
+
+	restoreForegroundToSelf(oldActivePgid, &prebackgroundSigaction);
+	fflush(stdout);
+	fflush(stderr);
+}
+
+
+void waitForBackgroundedChildren() {
+	int terminatedPid;
+	int processStatus;
+	while ((terminatedPid = waitpid(-1, &processStatus, WNOHANG)) != 0) {
+		// This is fine, as we don't have a good way of keeping track of
+		// how many children we're waiting on...
+		if (terminatedPid == -1 && errno == ECHILD) {
+			errno = 0;
+			break;
+		}
+		fprintf(stdout, "Process %d has terminated.\n", terminatedPid);
+	}
 }
 
