@@ -62,6 +62,7 @@ int main(int argc, char **argv) {
 
   // This is where the program will connect to/bind to.
   struct sockaddr_in socketAddress;
+  socketAddress.sin_family = AF_INET;
 
   parseArguments(argc, argv, &PROG_NAME, &socketAddress, &servermode, &DEBUG);
 
@@ -75,6 +76,16 @@ int main(int argc, char **argv) {
 
     serversocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serversocket < 0) {
+      perror(PROG_NAME);
+      exit(EXIT_ERROR_SOCKET);
+    }
+
+    socklen_t addrlen = sizeof(socketAddress);
+
+    if (DEBUG) {
+      fputs("Binding to socket.\n", stdout);
+    }
+    if (bind(serversocket, (struct sockaddr *)(&socketAddress), addrlen) != 0) {
       perror(PROG_NAME);
       exit(EXIT_ERROR_SOCKET);
     }
