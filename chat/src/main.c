@@ -4,12 +4,11 @@ Purpose:
   Class project for CS 239.
 
   This is a simple 1:1 chat server.  Both server and client execute
-  this program.  The server will default to server mode if the mode is
+  this program.  The server will default to client mode if the mode is
   not specified.
 
   Usage:
-    chat --server [interface] port [--debug]
-    chat --client [interface] port [--debug]
+    chat [--server] [interface] port [--debug]
 
 */
 
@@ -41,6 +40,7 @@ Function declarations
   command line arguments respectively.
 
   progName is the string pointer that should hold the executable's name.
+  servermode indicates that the client should operate in server mode.
   debug corresponds to whether the user is requesting debug output.
 
   If there is an unexpected argument in argv, this will cause the
@@ -48,32 +48,45 @@ Function declarations
 */
 void parseArguments(
   int argc, char **argv,
-  char **progName, bool *debug);
+  char **progName, bool *servermode, bool *debug);
 
 
 /* --------------------------------------------------------------------
 Main
 -------------------------------------------------------------------- */
 int main(int argc, char **argv) {
-  parseArguments(argc, argv, &PROG_NAME, &DEBUG);
+  bool servermode = false;
 
-  // Used only if we're in server mode. This is where we'll listen for
-  // incoming connections.
-  int serversocket;
+  parseArguments(argc, argv, &PROG_NAME, &servermode, &DEBUG);
 
-  serversocket = socket(AF_INET, SOCK_STREAM, 0);
-  if (serversocket < 0) {
-    perror(PROG_NAME);
-    exit(EXIT_ERROR_SOCKET);
+  if (servermode) {
+    if (DEBUG) {
+      fputs("Running in server mode.\n", stdout);
+    }
+    // Used only if we're in server mode. This is where we'll listen for
+    // incoming connections.
+    int serversocket;
+
+    serversocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serversocket < 0) {
+      perror(PROG_NAME);
+      exit(EXIT_ERROR_SOCKET);
+    }
+
+    fputs("Waiting for connection from a host...\n", stdout);
+
+    if (DEBUG) {
+      fputs("Connection complete.\n", stdout);
+    }
+    // Got a connection, exit.
+    close(serversocket);
+  } else {
+    if (DEBUG) {
+      fputs("Running in client mode.\n", stdout);
+    }
   }
 
-  fputs("Waiting for connection from a host...\n", stdout);
 
-  if (DEBUG) {
-    fputs("Connection complete.\n", stdout);
-  }
-  // Got a connection, exit.
-  close(serversocket);
   return 0;
 }
 
@@ -82,13 +95,15 @@ Function definitions
 -------------------------------------------------------------------- */
 void parseArguments(
   int argc, char **argv,
-  char **progName, bool *debug) {
+  char **progName, bool *servermode, bool *debug) {
 
   *progName = *(argv++);
 
   // Skip the first item, since that points to the executable.
   for (--argc; argc > 0; --argc, ++argv) {
-    if (strcmp(*argv, "--debug") == 0) {
+    if (strcmp(*argv, "--server") == 0) {
+      *servermode = true;
+    } else if (strcmp(*argv, "--debug") == 0) {
       *debug = true;
     } else {
       fprintf(stderr, "%s: Unexpected argument '%s'", *progName, *argv);
