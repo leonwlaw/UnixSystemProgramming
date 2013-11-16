@@ -58,6 +58,16 @@ void parseArguments(
   struct sockaddr_in *socketAddress, bool *servermode, bool *debug);
 
 
+/*
+  Waits for a client to connect to us.
+
+  socketAddress is the address where we should listen on.
+
+  remotesocket is the file descriptor used to communicate to/from the
+  remote client.
+*/
+void getClientConnection(struct sockaddr_in socketAddress, int *remotesocket);
+
 /* --------------------------------------------------------------------
 Main
 -------------------------------------------------------------------- */
@@ -75,45 +85,8 @@ int main(int argc, char **argv) {
     if (DEBUG) {
       fputs("Running in server mode.\n", stdout);
     }
-    // Used only if we're in server mode. This is where we'll listen for
-    // incoming connections.
-    int serversocket;
 
-    serversocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serversocket < 0) {
-      perror(PROG_NAME);
-      exit(EXIT_ERROR_SOCKET);
-    }
-
-    socklen_t addrlen = sizeof(socketAddress);
-
-    if (DEBUG) {
-      fputs("Binding to socket.\n", stdout);
-    }
-    if (bind(serversocket, (struct sockaddr *)(&socketAddress), addrlen) != 0) {
-      perror(PROG_NAME);
-      exit(EXIT_ERROR_SOCKET);
-    }
-
-    if (listen(serversocket, MAX_CLIENTS) != 0) {
-      perror(PROG_NAME);
-      exit(EXIT_ERROR_SOCKET);
-    }
-
-    fputs("Waiting for connection from a host...\n", stdout);
-    struct sockaddr remoteAddress;
-    socklen_t remoteAddrLen;
-
-    if ((remoteSocket = accept(serversocket, &remoteAddress, &remoteAddrLen)) == -1) {
-      perror(PROG_NAME);
-      exit(EXIT_ERROR_SOCKET);
-    }
-
-    if (DEBUG) {
-      fputs("Connection complete.\n", stdout);
-    }
-    // Got a connection, exit.
-    close(serversocket);
+    getClientConnection(socketAddress, &remoteSocket);
   } else {
     if (DEBUG) {
       fputs("Running in client mode.\n", stdout);
@@ -224,4 +197,47 @@ void parseArguments(
     exit(EXIT_ERROR_ARGUMENT);
   }
 
+}
+
+
+void getClientConnection(struct sockaddr_in socketAddress, int *remotesocket) {
+  // Used only if we're in server mode. This is where we'll listen for
+  // incoming connections.
+
+  int serversocket = socket(AF_INET, SOCK_STREAM, 0);
+  if (serversocket < 0) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_SOCKET);
+  }
+
+  socklen_t addrlen = sizeof(socketAddress);
+
+  if (DEBUG) {
+    fputs("Binding to socket.\n", stdout);
+  }
+  if (bind(serversocket, (struct sockaddr *)(&socketAddress), addrlen) != 0) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_SOCKET);
+  }
+
+  if (listen(serversocket, MAX_CLIENTS) != 0) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_SOCKET);
+  }
+
+  fputs("Waiting for connection from a host...\n", stdout);
+  struct sockaddr remoteAddress;
+  socklen_t remoteAddrLen;
+
+  if ((*remotesocket = accept(serversocket, &remoteAddress, &remoteAddrLen)) == -1) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_SOCKET);
+  }
+
+  if (DEBUG) {
+    fputs("Connection complete.\n", stdout);
+  }
+
+  // Got a connection, exit.
+  close(serversocket);
 }
