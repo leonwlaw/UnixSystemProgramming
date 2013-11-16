@@ -8,7 +8,7 @@ Purpose:
   not specified.
 
   Usage:
-    chat [--server] [--debug] [interface] port
+    chat [--server] [--debug] [interface] port username
 
 */
 
@@ -28,6 +28,7 @@ bool DEBUG = false;
 
 const int MAX_CLIENTS = 1;
 const int MESSAGE_BUFSIZE = 4096;
+const int USERNAME_BUFSIZE = 4096;
 
 // Sentinel value to indicate an invalid or otherwise NULL file
 // descriptor.
@@ -63,7 +64,7 @@ Function declarations
 */
 void parseArguments(
   int argc, char **argv,
-  char **progName,
+  char **progName, char *username,
   struct sockaddr_in *socketAddress, bool *servermode, bool *debug);
 
 
@@ -114,7 +115,22 @@ int main(int argc, char **argv) {
   struct sockaddr_in socketAddress;
   socketAddress.sin_family = AF_INET;
 
-  parseArguments(argc, argv, &PROG_NAME, &socketAddress, &servermode, &DEBUG);
+  char *username = malloc(sizeof(char) * USERNAME_BUFSIZE);
+  if (username == NULL) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_MEMORY);
+  }
+
+  char *remoteusername = malloc(sizeof(char) * USERNAME_BUFSIZE);
+  if (remoteusername == NULL) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_MEMORY);
+  }
+
+  parseArguments(argc, argv, &PROG_NAME, username, &socketAddress, &servermode, &DEBUG);
+  if (DEBUG) {
+    fprintf(stdout, "Username: %s\n", username);
+  }
 
   if (servermode) {
     if (DEBUG) {
@@ -136,6 +152,18 @@ int main(int argc, char **argv) {
   if (message == NULL) {
     perror(PROG_NAME);
     exit(EXIT_ERROR_MEMORY);
+  }
+
+  writeToFile(remoteSocket, username, USERNAME_BUFSIZE);
+
+  if ((chars = read(remoteSocket, remoteusername, USERNAME_BUFSIZE)) < 0) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_IO);
+  }
+
+  if (DEBUG) {
+    fprintf(stdout, "Local username: %s\n", username);
+    fprintf(stdout, "Remote username: %s\n", remoteusername);
   }
 
   fd_set dataSourceFds;
@@ -187,7 +215,7 @@ Function definitions
 -------------------------------------------------------------------- */
 void parseArguments(
   int argc, char **argv,
-  char **progName,
+  char **progName, char *username,
   struct sockaddr_in *socketAddress, bool *servermode, bool *debug) {
 
   *progName = *(argv++);
@@ -205,7 +233,7 @@ void parseArguments(
   }
 
   // Did the user enter an IP address?
-  if (argc == 2) {
+  if (argc == 3) {
     // User entered a pair of IP port values.
     struct in_addr ipv4Address;
     switch (inet_pton(AF_INET, *argv, &ipv4Address)) {
@@ -235,29 +263,41 @@ void parseArguments(
     socketAddress->sin_addr.s_addr = INADDR_ANY;
   }
 
-  if (argc == 1) {
-    // Parse the port value.
-    char *afterPort = *argv;
-    int port = strtol(*argv, &afterPort, 10);
-
-    // Make sure that we actually consumed a port number, and not a part
-    // of the IP address.
-    if (*afterPort != '\0') {
-      fprintf(stderr, "Invalid port number: '%s'\n", *argv);
-      exit(EXIT_ERROR_ARGUMENT);
-    }
-    if (DEBUG) {
-      fprintf(stdout, "Specified port: %d\n", port);
-    }
-    socketAddress->sin_port = htons(port);
-
-    // Consume the argument.
-    --argc;
-    ++argv;
-  } else {
-    fprintf(stderr, "%s: Expected a port number.\n", *progName);
+  if (*argv == NULL) {
+    fputs("Expected a port number\n", stderr);
     exit(EXIT_ERROR_ARGUMENT);
   }
+
+  // Parse the port value.
+  char *afterPort = *argv;
+  int port = strtol(*argv, &afterPort, 10);
+
+  // Make sure that we actually consumed a port number, and not a part
+  // of the IP address.
+  if (*afterPort != '\0') {
+    fprintf(stderr, "Invalid port number: '%s'\n", *argv);
+    exit(EXIT_ERROR_ARGUMENT);
+  }
+  if (DEBUG) {
+    fprintf(stdout, "Specified port: %d\n", port);
+  }
+  socketAddress->sin_port = htons(port);
+
+  // Consume the argument.
+  --argc;
+  ++argv;
+
+  if (*argv == NULL) {
+    fputs("Expected username\n", stderr);
+    exit(EXIT_ERROR_ARGUMENT);
+  }
+
+  // Get the username.
+  strncpy(username, *argv, USERNAME_BUFSIZE);
+
+  // Consume the argument.
+  --argc;
+  ++argv;
 
   if (*argv != NULL) {
     fprintf(stderr, "%s: Unexpected argument '%s'", *progName, *argv);
