@@ -74,6 +74,13 @@ void parseArguments(
 */
 void getClientConnection(struct sockaddr_in socketAddress, int *remotesocket);
 
+/*
+  Writes a message to the specified file.
+
+  Returns 0 on success, 1 on error.
+
+*/
+int writeToFile(int file, char *message, size_t chars);
 /* --------------------------------------------------------------------
 Main
 -------------------------------------------------------------------- */
@@ -111,7 +118,8 @@ int main(int argc, char **argv) {
   int dataSourceFdsCount = remoteSocket + 1;
 
   // The file descriptors that we need to look at.
-  int fdsToCheck[] = {0, remoteSocket, FD_NULL};
+  int inputFds[] = {0, remoteSocket, FD_NULL};
+  int outputFds[] = {remoteSocket, 1, FD_NULL};
   do {
     FD_ZERO(&dataSourceFds);
     FD_SET(0, &dataSourceFds);
@@ -127,11 +135,17 @@ int main(int argc, char **argv) {
       fprintf(stdout, "Received input from %d source(s).\n", selected);
     }
 
-    for (int *fd = fdsToCheck; *fd != -1; ++fd) {
-      if (FD_ISSET(*fd, &dataSourceFds)) {
-        chars = read(*fd, message, MESSAGE_BUFSIZE);
+    for (int *in = inputFds, *out = outputFds;
+      *in != -1;
+      ++in, ++out) {
+
+      if (FD_ISSET(*in, &dataSourceFds)) {
+        chars = read(*in, message, MESSAGE_BUFSIZE);
         message[chars] = '\0';
-        fputs(message, stdout);
+        if (writeToFile(*out, message, chars) != 0) {
+          perror(PROG_NAME);
+          exit(EXIT_ERROR_IO);
+        }
       }
     }
   } while (chars > 0);
@@ -270,3 +284,14 @@ void getClientConnection(struct sockaddr_in socketAddress, int *remotesocket) {
   // Got a connection, exit.
   close(serversocket);
 }
+
+int writeToFile(int file, char *message, size_t chars) {
+  ssize_t bytesWritten = 0;
+  while ((bytesWritten = write(file, message + bytesWritten, chars - bytesWritten))) {
+    if (bytesWritten < 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
