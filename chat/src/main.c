@@ -194,6 +194,11 @@ int main(int argc, char **argv) {
       if (FD_ISSET(*in, &dataSourceFds)) {
         chars = read(*in, message, MESSAGE_BUFSIZE);
         message[chars] = '\0';
+        if (*out == 1) {
+          writeToFile(1, remoteusername, USERNAME_BUFSIZE);
+          fputs(": ", stdout);
+          fflush(stdout);
+        }
         if (writeToFile(*out, message, chars) != 0) {
           perror(PROG_NAME);
           exit(EXIT_ERROR_IO);
