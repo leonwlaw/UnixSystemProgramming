@@ -42,6 +42,9 @@ enum EXIT_T {
   EXIT_ERROR_IO,
 };
 
+// The socket to the remote server/client.
+static int remoteSocket;
+
 /* --------------------------------------------------------------------
 Function declarations
 -------------------------------------------------------------------- */
@@ -85,6 +88,11 @@ void getClientConnection(struct sockaddr_in socketAddress, int *remotesocket);
 void connectToServer(struct sockaddr_in *socketAddress, int *remotesocket);
 
 /*
+  Close any remote connections before exiting.
+*/
+void closeRemoteConnection();
+
+/*
   Writes a message to the specified file.
 
   Returns 0 on success, 1 on error.
@@ -97,7 +105,11 @@ Main
 int main(int argc, char **argv) {
   bool servermode = false;
 
-  int remoteSocket;
+  remoteSocket = FD_NULL;
+  // We should close the remote connection so that the remote end does
+  // not end up with a socket stuck in TIME_WAIT.
+  atexit(closeRemoteConnection);
+
   // This is where the program will connect to/bind to.
   struct sockaddr_in socketAddress;
   socketAddress.sin_family = AF_INET;
@@ -332,3 +344,10 @@ void connectToServer(struct sockaddr_in *socketAddress, int *remotesocket) {
   }
 }
 
+void closeRemoteConnection() {
+  if (remoteSocket != FD_NULL) {
+    if (close(remoteSocket) != 0) {
+      perror(PROG_NAME);
+    }
+  }
+}
