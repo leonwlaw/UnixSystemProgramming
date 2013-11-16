@@ -20,6 +20,7 @@ Purpose:
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <stdbool.h>
 
 char *PROG_NAME;
@@ -28,12 +29,17 @@ bool DEBUG = false;
 const int MAX_CLIENTS = 1;
 const int MESSAGE_BUFSIZE = 4096;
 
+// Sentinel value to indicate an invalid or otherwise NULL file
+// descriptor.
+const int FD_NULL = -1;
+
 // The set of valid exit values.
 enum EXIT_T {
   EXIT_NORMAL = 0,
   EXIT_ERROR_ARGUMENT,
   EXIT_ERROR_SOCKET,
   EXIT_ERROR_MEMORY,
+  EXIT_ERROR_IO,
 };
 
 /* --------------------------------------------------------------------
@@ -101,10 +107,33 @@ int main(int argc, char **argv) {
     exit(EXIT_ERROR_MEMORY);
   }
 
+  fd_set dataSourceFds;
+  int dataSourceFdsCount = remoteSocket + 1;
+
+  // The file descriptors that we need to look at.
+  int fdsToCheck[] = {0, remoteSocket, FD_NULL};
   do {
-    chars = read(remoteSocket, message, MESSAGE_BUFSIZE);
-    message[chars] = '\0';
-    fputs(message, stdout);
+    FD_ZERO(&dataSourceFds);
+    FD_SET(0, &dataSourceFds);
+    FD_SET(remoteSocket, &dataSourceFds);
+
+    int selected = select(dataSourceFdsCount, &dataSourceFds, NULL, NULL, NULL);
+    if (selected < 0) {
+      perror(PROG_NAME);
+      exit(EXIT_ERROR_IO);
+    }
+
+    if (DEBUG) {
+      fprintf(stdout, "Received input from %d source(s).\n", selected);
+    }
+
+    for (int *fd = fdsToCheck; *fd != -1; ++fd) {
+      if (FD_ISSET(*fd, &dataSourceFds)) {
+        chars = read(*fd, message, MESSAGE_BUFSIZE);
+        message[chars] = '\0';
+        fputs(message, stdout);
+      }
+    }
   } while (chars > 0);
 
   if (DEBUG) {
