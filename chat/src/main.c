@@ -25,11 +25,15 @@ Purpose:
 char *PROG_NAME;
 bool DEBUG = false;
 
+const int MAX_CLIENTS = 1;
+const int MESSAGE_BUFSIZE = 4096;
+
 // The set of valid exit values.
 enum EXIT_T {
   EXIT_NORMAL = 0,
   EXIT_ERROR_ARGUMENT,
   EXIT_ERROR_SOCKET,
+  EXIT_ERROR_MEMORY,
 };
 
 /* --------------------------------------------------------------------
@@ -60,6 +64,7 @@ Main
 int main(int argc, char **argv) {
   bool servermode = false;
 
+  int remoteSocket;
   // This is where the program will connect to/bind to.
   struct sockaddr_in socketAddress;
   socketAddress.sin_family = AF_INET;
@@ -90,7 +95,19 @@ int main(int argc, char **argv) {
       exit(EXIT_ERROR_SOCKET);
     }
 
+    if (listen(serversocket, MAX_CLIENTS) != 0) {
+      perror(PROG_NAME);
+      exit(EXIT_ERROR_SOCKET);
+    }
+
     fputs("Waiting for connection from a host...\n", stdout);
+    struct sockaddr remoteAddress;
+    socklen_t remoteAddrLen;
+
+    if ((remoteSocket = accept(serversocket, &remoteAddress, &remoteAddrLen)) == -1) {
+      perror(PROG_NAME);
+      exit(EXIT_ERROR_SOCKET);
+    }
 
     if (DEBUG) {
       fputs("Connection complete.\n", stdout);
@@ -103,7 +120,25 @@ int main(int argc, char **argv) {
     }
   }
 
+  // Read data from remote
+  int chars;
+  char *message = malloc(sizeof(char) * MESSAGE_BUFSIZE);
+  if (message == NULL) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_MEMORY);
+  }
 
+  do {
+    chars = read(remoteSocket, message, MESSAGE_BUFSIZE);
+    message[chars] = '\0';
+    fputs(message, stdout);
+  } while (chars > 0);
+
+  if (DEBUG) {
+    fputs("Remote end closed.\n", stdout);
+  }
+
+  free(message);
   return 0;
 }
 
