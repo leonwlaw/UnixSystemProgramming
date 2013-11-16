@@ -75,6 +75,16 @@ void parseArguments(
 void getClientConnection(struct sockaddr_in socketAddress, int *remotesocket);
 
 /*
+  Connect to the server.
+
+  socketAddress is the remote server to connect to.
+
+  remotesocket is the file descriptor used to communicate to/from the
+  server.
+*/
+void connectToServer(struct sockaddr_in *socketAddress, int *remotesocket);
+
+/*
   Writes a message to the specified file.
 
   Returns 0 on success, 1 on error.
@@ -104,6 +114,8 @@ int main(int argc, char **argv) {
     if (DEBUG) {
       fputs("Running in client mode.\n", stdout);
     }
+
+    connectToServer(&socketAddress, &remoteSocket);
   }
 
   // Read data from remote
@@ -293,5 +305,30 @@ int writeToFile(int file, char *message, size_t chars) {
     }
   }
   return 0;
+}
+
+void connectToServer(struct sockaddr_in *socketAddress, int *remotesocket) {
+  // Used only if we're in client mode. Connect to the remote server.
+
+  *remotesocket = socket(AF_INET, SOCK_STREAM, 0);
+  if (*remotesocket < 0) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_SOCKET);
+  }
+
+  socklen_t addrlen = sizeof(*socketAddress);
+
+  if (DEBUG) {
+    fputs("Connecting to server...\n", stdout);
+  }
+
+  if (connect(*remotesocket, (struct sockaddr *)(socketAddress), addrlen) != 0) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_SOCKET);
+  }
+
+  if (DEBUG) {
+    fputs("Server connected.\n", stdout);
+  }
 }
 
