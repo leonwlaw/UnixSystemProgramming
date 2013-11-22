@@ -125,21 +125,10 @@ int main(int argc, char **argv) {
   }
 
   parseArguments(argc, argv, &PROG_NAME, username, &socketAddress, &servermode, &DEBUG);
-  if (DEBUG) {
-    fprintf(stdout, "Username: %s\n", username);
-  }
 
   if (servermode) {
-    if (DEBUG) {
-      fputs("Running in server mode.\n", stdout);
-    }
-
     getClientConnection(socketAddress, &remoteSocket);
   } else {
-    if (DEBUG) {
-      fputs("Running in client mode.\n", stdout);
-    }
-
     connectToServer(&socketAddress, &remoteSocket);
   }
 
@@ -165,10 +154,6 @@ int main(int argc, char **argv) {
   strncpy(outmessage, username, usernameLength);
   strncpy(outmessage + usernameLength, SEPARATOR,
     SEPARATOR_LENGTH);
-
-  if (DEBUG) {
-    fprintf(stdout, "Local username: %s\n", username);
-  }
 
   fd_set dataSourceFds;
   int dataSourceFdsCount = remoteSocket + 1;
@@ -329,13 +314,19 @@ void parseArguments(
     exit(EXIT_ERROR_ARGUMENT);
   }
 
+  if (DEBUG) {
+    fprintf(stdout, "Username: %s\n", username);
+  }
+
 }
 
 
 void getClientConnection(struct sockaddr_in socketAddress, int *remotesocket) {
   // Used only if we're in server mode. This is where we'll listen for
   // incoming connections.
-
+  if (DEBUG) {
+    fputs("Running in server mode.\n", stdout);
+  }
   int serversocket = socket(AF_INET, SOCK_STREAM, 0);
   if (serversocket < 0) {
     perror(PROG_NAME);
@@ -386,6 +377,9 @@ int writeToFile(int file, char *message, size_t chars) {
 
 void connectToServer(struct sockaddr_in *socketAddress, int *remotesocket) {
   // Used only if we're in client mode. Connect to the remote server.
+  if (DEBUG) {
+    fputs("Running in client mode.\n", stdout);
+  }
 
   *remotesocket = socket(AF_INET, SOCK_STREAM, 0);
   if (*remotesocket < 0) {
