@@ -103,6 +103,13 @@ void closeRemoteConnection();
 
 */
 int writeToFile(int file, char *message, size_t chars);
+
+/*
+  Prints out the usage string for this program.
+*/
+void displayUsageString();
+
+
 /* --------------------------------------------------------------------
 Main
 -------------------------------------------------------------------- */
@@ -255,6 +262,7 @@ void parseArguments(
         break;
       case 0: // Not a valid IPv4 address
         fprintf(stderr, "%s: Not a valid address '%s'\n", *progName, *argv);
+        displayUsageString();
         exit(EXIT_ERROR_ARGUMENT);
         break;
       case -1: // Socket-related error
@@ -275,6 +283,7 @@ void parseArguments(
 
   if (*argv == NULL) {
     fputs("Expected a port number\n", stderr);
+    displayUsageString();
     exit(EXIT_ERROR_ARGUMENT);
   }
 
@@ -286,6 +295,7 @@ void parseArguments(
   // of the IP address.
   if (*afterPort != '\0') {
     fprintf(stderr, "Invalid port number: '%s'\n", *argv);
+    displayUsageString();
     exit(EXIT_ERROR_ARGUMENT);
   }
   if (DEBUG) {
@@ -299,6 +309,7 @@ void parseArguments(
 
   if (*argv == NULL) {
     fputs("Expected username\n", stderr);
+    displayUsageString();
     exit(EXIT_ERROR_ARGUMENT);
   }
 
@@ -311,6 +322,7 @@ void parseArguments(
 
   if (*argv != NULL) {
     fprintf(stderr, "%s: Unexpected argument '%s'", *progName, *argv);
+    displayUsageString();
     exit(EXIT_ERROR_ARGUMENT);
   }
 
@@ -409,4 +421,9 @@ void closeRemoteConnection() {
       perror(PROG_NAME);
     }
   }
+}
+
+void displayUsageString() {
+  fputs("Usage:\n\
+    chat [--server] [--debug] [interface] port username\n", stdout);
 }
