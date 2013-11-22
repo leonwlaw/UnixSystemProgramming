@@ -1,0 +1,9 @@
+Chat
+=======================
+
+Invocation:
+  chat [--debug] --server [interface] port username # server mode
+  chat [--debug] [interface] port username # client mode
+
+ * Interface defaults to any interface (INADDR_ANY) if not specified.
+ * --debug and --server can be in any order.
