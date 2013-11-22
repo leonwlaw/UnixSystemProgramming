@@ -30,6 +30,9 @@ const int MAX_CLIENTS = 1;
 const int MESSAGE_BUFSIZE = 4096;
 const int USERNAME_BUFSIZE = 4096;
 
+char *SEPARATOR = ": ";
+size_t SEPARATOR_LENGTH = 2;
+
 // Sentinel value to indicate an invalid or otherwise NULL file
 // descriptor.
 const int FD_NULL = -1;
@@ -121,12 +124,6 @@ int main(int argc, char **argv) {
     exit(EXIT_ERROR_MEMORY);
   }
 
-  char *remoteusername = malloc(sizeof(char) * USERNAME_BUFSIZE);
-  if (remoteusername == NULL) {
-    perror(PROG_NAME);
-    exit(EXIT_ERROR_MEMORY);
-  }
-
   parseArguments(argc, argv, &PROG_NAME, username, &socketAddress, &servermode, &DEBUG);
   if (DEBUG) {
     fprintf(stdout, "Username: %s\n", username);
@@ -154,16 +151,23 @@ int main(int argc, char **argv) {
     exit(EXIT_ERROR_MEMORY);
   }
 
-  writeToFile(remoteSocket, username, USERNAME_BUFSIZE);
-
-  if ((chars = read(remoteSocket, remoteusername, USERNAME_BUFSIZE)) < 0) {
+  // Permit enough space to fit the username and SEPARATOR (": ")
+  size_t usernameLength = strlen(username);
+  char *outmessage = malloc(sizeof(char) * (MESSAGE_BUFSIZE + usernameLength + SEPARATOR_LENGTH));
+  if (outmessage == NULL) {
     perror(PROG_NAME);
-    exit(EXIT_ERROR_IO);
+    exit(EXIT_ERROR_MEMORY);
   }
+
+  // We only need to copy over the username/separator to the output
+  // string once, since all output strings will contain this leading
+  // substring.
+  strncpy(outmessage, username, usernameLength);
+  strncpy(outmessage + usernameLength, SEPARATOR,
+    SEPARATOR_LENGTH);
 
   if (DEBUG) {
     fprintf(stdout, "Local username: %s\n", username);
-    fprintf(stdout, "Remote username: %s\n", remoteusername);
   }
 
   fd_set dataSourceFds;
@@ -194,14 +198,29 @@ int main(int argc, char **argv) {
       if (FD_ISSET(*in, &dataSourceFds)) {
         chars = read(*in, message, MESSAGE_BUFSIZE);
         message[chars] = '\0';
-        if (*out == 1) {
-          writeToFile(1, remoteusername, USERNAME_BUFSIZE);
-          fputs(": ", stdout);
-          fflush(stdout);
-        }
-        if (writeToFile(*out, message, chars) != 0) {
-          perror(PROG_NAME);
-          exit(EXIT_ERROR_IO);
+        if (*out != 1) {
+          // Build the message to send to the remote socket.
+          strncpy(outmessage + usernameLength + SEPARATOR_LENGTH,
+            message, MESSAGE_BUFSIZE);
+
+          size_t outmessageLength = usernameLength +
+            SEPARATOR_LENGTH + chars;
+          // Just for good measure, null terminate the string.
+          outmessage[outmessageLength] = '\0';
+
+          if (DEBUG) {
+            fprintf(stderr, "Outgoing message: '%s'\n", outmessage);
+          }
+
+          if (writeToFile(*out, outmessage, outmessageLength) != 0) {
+            perror(PROG_NAME);
+            exit(EXIT_ERROR_IO);
+          }
+        } else {
+          if (writeToFile(*out, message, chars) != 0) {
+            perror(PROG_NAME);
+            exit(EXIT_ERROR_IO);
+          }
         }
       }
     }
@@ -211,6 +230,7 @@ int main(int argc, char **argv) {
     fputs("Remote end closed.\n", stdout);
   }
 
+  free(outmessage);
   free(message);
   return 0;
 }
