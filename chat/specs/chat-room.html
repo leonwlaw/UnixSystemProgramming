@@ -1,0 +1,74 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- saved from url=(0171)https://blackboard.poly.edu/bbcswebdav/pid-475384-dt-content-rid-1301638_1/courses/Fall1134.CS239.1895/Fall1134.CS239.1895_ImportedContent_20130822062801/ChatRoomSpec.html -->
+<html xmlns="http://www.w3.org/1999/xhtml"><!-- InstanceBegin template="/Templates/cs905.dwt" codeOutsideHTMLIsLocked="false" --><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+
+<!-- InstanceBeginEditable name="doctitle" -->
+<title>CS239 Chat Room</title>
+<!-- InstanceEndEditable -->
+<!-- InstanceBeginEditable name="head" --><!-- InstanceEndEditable -->
+<style type="text/css">
+<!--
+.style1 {font-size: small}
+-->
+</style>
+<style type="text/css"></style></head>
+
+<body>
+<h1 align="center">CS239 Unix Systems Programming</h1>
+<!-- InstanceBeginEditable name="Body" -->
+<h2>Chat Room </h2>
+<h3>Focus</h3>
+<ul>
+  <li>Concurrency</li>
+  <li>Networking</li>
+</ul>
+<h3>Spec</h3>
+  <p>Write a chat room server</p>
+<ul>
+  <li>The chat server's primary job is to pass messages from all
+  clients to all clients. </li>
+  <li>The server will need to
+    <ul>
+      <li>allow connections from clients.</li>
+      <li>receive messages</li>
+      <li>send the messages to all connected clients.</li>
+    </ul>
+  </li>
+</ul>
+<h3>Notes</h3>
+<ul>
+  <li>Each time a client connects a new thread should be created to
+  handle the input from the client.
+  </li><li>Each time a message is sent by a client, the message should be
+  added to a queue.
+  </li><li>A single separate thread should be responsible for removing the
+  messages from the queue and sending them to the all of the clients.
+  </li><li>Note the main areas to watch for race conditions:
+<ul>
+  <li>Maintaining the "list" of clients currently logged in.
+  </li><li>Maintaining the queue of messages to be sent out.
+</li></ul>
+  </li><li>In order for the server to know that the client is "signing
+  off", the client should send a message to the server saying
+  so.<p></p>
+</li></ul>
+<h3>Turn in:</h3>
+  <p>Submit your solution on Blackboard as a <em>compressed</em> tar
+  file. It should include:</p>
+  <ul>
+    <li>A makefile</li>
+    <li>The source files: Your server and a corresponding client.  The
+    latter might be the same client code that you used for the
+    previous assignment.</li>
+    <li>README.  Explain anything special about your program.  Please
+    note whether the client is the same as in the previous assignment,
+    if not what changed.  And, as always, explain if there is anything
+    that didn't work.
+  </li></ul>
+<!-- InstanceEndEditable -->
+<p><a href="http://cis.poly.edu/jsterling/cs239" class="style1">Home</a></p>
+<hr>
+<p class="style1">Maintained by <a href="http://cis.poly.edu/jsterling">John Sterling</a> (<a href="mailto:jsterling@poly.edu">jsterling@poly.edu</a>)  </p>
+
+<!-- InstanceEnd -->
+</body></html>
