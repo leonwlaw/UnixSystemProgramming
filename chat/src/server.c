@@ -46,6 +46,7 @@ enum EXIT_T {
   EXIT_ERROR_SOCKET,
   EXIT_ERROR_MEMORY,
   EXIT_ERROR_IO,
+  EXIT_ERROR_THREAD,
 };
 
 // The socket to the remote server/client.
@@ -117,6 +118,20 @@ int getNextUnusedSocket(int **current, int *begin, int *end);
 */
 void * handleConnection(void *args);
 
+/*
+  Sends messages received to clients.
+
+  *args should be a int *fd.
+
+  fd is an array of file descriptors, of length MAX_CLIENTS.
+*/
+void * propagateMessages(void *args);
+
+/*
+  Starts a thread that handles message propagation.
+*/
+void startMessagePropagationThread(int *clientSockets);
+
 /* --------------------------------------------------------------------
 Main
 -------------------------------------------------------------------- */
@@ -137,6 +152,7 @@ int main(int argc, char **argv) {
   }
 
   parseArguments(argc, argv, &PROG_NAME, &socketAddress, &DEBUG);
+  startMessagePropagationThread(clientSockets);
 
   listenForClients(socketAddress, clientSockets, MAX_CLIENTS);
   free(clientSockets);
@@ -230,21 +246,42 @@ void parseArguments(
 
 void * handleConnection(void *args) {
   // The file descriptor of the remote socket.
-  int socket = *(int *)(args);
-  fprintf(stdout, "Listening on FD: %d\n", socket);
+  int *socket = (int *)(args);
+  if (DEBUG) {
+    fprintf(stdout, "Listening on FD: %d\n", *socket);
+  }
   // This is where we will store the remote client's sent message.
   char messageBuf[256];
   // This should be the same size as messageBuf's size.
   const size_t messageBufsize = 256;
 
   int chars;
-  while ((chars = read(socket, messageBuf, messageBufsize)) > 0) {
+  while ((chars = read(*socket, messageBuf, messageBufsize)) > 0) {
     if (chars < 0) {
       perror(PROG_NAME);
       pthread_exit(NULL);
     }
     messageBuf[chars] = '\0';
     fputs(messageBuf, stdout);
+  }
+
+  // Mark this socket as unusable
+  *socket = 0;
+  pthread_exit(NULL);
+}
+
+void * propagateMessages(void *args) {
+  int *sockets = (int *)args;
+  char message[] = "Server says hello!\n";
+  while (true) {
+    for (size_t i = 0; i < MAX_CLIENTS; ++i) {
+      if (sockets[i] != 0) {
+        if (write(sockets[i], message, strlen(message)) < 0) {
+          perror(PROG_NAME);
+        }
+      }
+    }
+    sleep(5);
   }
   pthread_exit(NULL);
 }
@@ -373,4 +410,15 @@ int getNextUnusedSocket(int **current, int *begin, int *end) {
     return -1;
   }
   return 0;
+}
+
+
+void startMessagePropagationThread(int *clientSockets) {
+  pthread_t threadId;
+  int pthreadErrno;
+
+  if ((pthreadErrno = pthread_create(&threadId, NULL, propagateMessages, (void *)(clientSockets))) != 0) {
+    perror("PROG_NAME");
+    exit(EXIT_ERROR_THREAD);
+  }
 }
