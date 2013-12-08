@@ -1,0 +1,82 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- saved from url=(0167)https://blackboard.poly.edu/bbcswebdav/pid-475383-dt-content-rid-1301636_1/courses/Fall1134.CS239.1895/Fall1134.CS239.1895_ImportedContent_20130822062801/2WayChat.html -->
+<html xmlns="http://www.w3.org/1999/xhtml"><!-- InstanceBegin template="/Templates/cs905.dwt" codeOutsideHTMLIsLocked="false" --><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+
+<!-- InstanceBeginEditable name="doctitle" -->
+<title>CS239 2 Way Chat</title>
+<!-- InstanceEndEditable -->
+<!-- InstanceBeginEditable name="head" --><!-- InstanceEndEditable -->
+<style type="text/css">
+<!--
+.style1 {font-size: small}
+-->
+</style>
+<style type="text/css"></style></head>
+
+<body>
+<h1 align="center">CS239 Unix Systems Programming</h1>
+<!-- InstanceBeginEditable name="Body" -->
+<h2>2-Way Chat</h2>
+<h3>Focus</h3>
+<ul>
+  <li>Networking</li>
+  <li>Multi-plexing</li>
+</ul>
+<h3>Spec</h3>
+<p>Application: Allow two users to "chat"</p>
+
+<ul>
+  <li>We need a "server" that will sit there waiting for a client to
+  connect.</li>
+  <li>After receiving a connection, both client and server will act alike.</li>
+  <li>Each will take whatever the user at their end types in and send
+  it, together with the user's name to the other process.</li>
+  <li>They will also take whatever they other process sends over the
+  network connection and display it to their user.  Each transmission
+  from one party to the other includes the sender's name.  The
+  receiver does not have to remember that name.</li>
+  <li>There "problem", aside from the usual setting up programs to act
+    as TCP/IP client and server, is <em>how does a process get input
+    from two sources at a time</em>?</li>
+  <li>One could constantly poll, with the downsides of wasted cpu
+  usage and possibly additional delay in recognizing input due to
+  sleeping.</li>
+  <li>One could assign a thread or even a process to the the task of
+  reading from each file descriptor.</li>
+  <li>In this assignment you will use the Unix function select.</li>
+</ul>
+<h3>Interface</h3>
+<ul>
+  <li>While it would be nice to have a pretty GUI for this program, we
+    will do without one.  (If we get to covering the Curses library it
+    might be nice to add a GUI.)</li>
+  <li>Instead we will simply have the user type to the application at the
+    shell and similarly see the output displayed to the shell.</li>
+  <li>To start either the client or the server, you will want to provide
+    a name for the user on the command line.</li>
+  <li>The server should also accept a port number at the command line,
+    so that we can run it flexibly using whatever port number is
+    convenient.</li>
+  <li>The client will need to provide both the IP address of the server
+    together with the port number that the server is listening on.</li>
+</ul>
+<h3>Turn in:</h3>
+  <p>Submit your solution on Blackboard as a <em>compressed</em> tar
+  file. It should include:</p>
+  <ul>
+    <li>A makefile</li>
+    <li>The source file(s).  It is possible to combine both client and
+    server in one program.  Feel free to do so if you like or write
+    them as two separate programs.  I have no preference.</li>
+    <li>README. Make sure it is clear how to run your program.  Also,
+      if there is anything I should know about, such as anything that
+      doesn't work, explain it here.</li>
+  </ul>
+
+<!-- InstanceEndEditable -->
+<p><a href="http://cis.poly.edu/jsterling/cs239" class="style1">Home</a></p>
+<hr>
+<p class="style1">Maintained by <a href="http://cis.poly.edu/jsterling">John Sterling</a> (<a href="mailto:jsterling@poly.edu">jsterling@poly.edu</a>)  </p>
+
+<!-- InstanceEnd -->
+</body></html>
