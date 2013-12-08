@@ -27,7 +27,6 @@ bool DEBUG = false;
 
 const int MAX_CLIENTS = 1;
 const int MESSAGE_BUFSIZE = 4096;
-const int USERNAME_BUFSIZE = 4096;
 
 char *SEPARATOR = ": ";
 size_t SEPARATOR_LENGTH = 2;
@@ -58,16 +57,14 @@ Function declarations
   command line arguments respectively.
 
   progName is the string pointer that should hold the executable's name.
-  servermode indicates that the client should operate in server mode.
   debug corresponds to whether the user is requesting debug output.
 
   If there is an unexpected argument in argv, this will cause the
   program to *TERMINATE*.
 */
 void parseArguments(
-  int argc, char **argv,
-  char **progName, char *username,
-  struct sockaddr_in *socketAddress, bool *servermode, bool *debug);
+  int argc, char **argv, char **progName,
+  struct sockaddr_in *socketAddress, bool *debug);
 
 
 /*
@@ -113,8 +110,6 @@ void displayUsageString();
 Main
 -------------------------------------------------------------------- */
 int main(int argc, char **argv) {
-  bool servermode = false;
-
   remoteSocket = FD_NULL;
   // We should close the remote connection so that the remote end does
   // not end up with a socket stuck in TIME_WAIT.
@@ -124,19 +119,9 @@ int main(int argc, char **argv) {
   struct sockaddr_in socketAddress;
   socketAddress.sin_family = AF_INET;
 
-  char *username = malloc(sizeof(char) * USERNAME_BUFSIZE);
-  if (username == NULL) {
-    perror(PROG_NAME);
-    exit(EXIT_ERROR_MEMORY);
-  }
+  parseArguments(argc, argv, &PROG_NAME, &socketAddress, &DEBUG);
 
-  parseArguments(argc, argv, &PROG_NAME, username, &socketAddress, &servermode, &DEBUG);
-
-  if (servermode) {
-    getClientConnection(socketAddress, &remoteSocket);
-  } else {
-    connectToServer(&socketAddress, &remoteSocket);
-  }
+  getClientConnection(socketAddress, &remoteSocket);
 
   // Read data from remote
   int chars;
@@ -145,21 +130,6 @@ int main(int argc, char **argv) {
     perror(PROG_NAME);
     exit(EXIT_ERROR_MEMORY);
   }
-
-  // Permit enough space to fit the username and SEPARATOR (": ")
-  size_t usernameLength = strlen(username);
-  char *outmessage = malloc(sizeof(char) * (MESSAGE_BUFSIZE + usernameLength + SEPARATOR_LENGTH));
-  if (outmessage == NULL) {
-    perror(PROG_NAME);
-    exit(EXIT_ERROR_MEMORY);
-  }
-
-  // We only need to copy over the username/separator to the output
-  // string once, since all output strings will contain this leading
-  // substring.
-  strncpy(outmessage, username, usernameLength);
-  strncpy(outmessage + usernameLength, SEPARATOR,
-    SEPARATOR_LENGTH);
 
   fd_set dataSourceFds;
   int dataSourceFdsCount = remoteSocket + 1;
@@ -189,29 +159,13 @@ int main(int argc, char **argv) {
       if (FD_ISSET(*in, &dataSourceFds)) {
         chars = read(*in, message, MESSAGE_BUFSIZE);
         message[chars] = '\0';
-        if (*out != 1) {
-          // Build the message to send to the remote socket.
-          strncpy(outmessage + usernameLength + SEPARATOR_LENGTH,
-            message, MESSAGE_BUFSIZE);
+        if (DEBUG) {
+          fprintf(stderr, "Outgoing message: '%s'\n", message);
+        }
 
-          size_t outmessageLength = usernameLength +
-            SEPARATOR_LENGTH + chars;
-          // Just for good measure, null terminate the string.
-          outmessage[outmessageLength] = '\0';
-
-          if (DEBUG) {
-            fprintf(stderr, "Outgoing message: '%s'\n", outmessage);
-          }
-
-          if (writeToFile(*out, outmessage, outmessageLength) != 0) {
-            perror(PROG_NAME);
-            exit(EXIT_ERROR_IO);
-          }
-        } else {
-          if (writeToFile(*out, message, chars) != 0) {
-            perror(PROG_NAME);
-            exit(EXIT_ERROR_IO);
-          }
+        if (writeToFile(*out, message, chars) != 0) {
+          perror(PROG_NAME);
+          exit(EXIT_ERROR_IO);
         }
       }
     }
@@ -221,7 +175,6 @@ int main(int argc, char **argv) {
     fputs("Remote end closed.\n", stdout);
   }
 
-  free(outmessage);
   free(message);
   return 0;
 }
@@ -230,17 +183,14 @@ int main(int argc, char **argv) {
 Function definitions
 -------------------------------------------------------------------- */
 void parseArguments(
-  int argc, char **argv,
-  char **progName, char *username,
-  struct sockaddr_in *socketAddress, bool *servermode, bool *debug) {
+  int argc, char **argv, char **progName,
+  struct sockaddr_in *socketAddress, bool *debug) {
 
   *progName = *(argv++);
 
   // Skip the first item, since that points to the executable.
   for (--argc; argc > 0; --argc, ++argv) {
-    if (strcmp(*argv, "--server") == 0) {
-      *servermode = true;
-    } else if (strcmp(*argv, "--debug") == 0) {
+    if (strcmp(*argv, "--debug") == 0) {
       *debug = true;
     } else {
       // This is not a valid option... maybe its an expected argument.
@@ -306,27 +256,10 @@ void parseArguments(
   --argc;
   ++argv;
 
-  if (*argv == NULL) {
-    fputs("Expected username\n", stderr);
-    displayUsageString();
-    exit(EXIT_ERROR_ARGUMENT);
-  }
-
-  // Get the username.
-  strncpy(username, *argv, USERNAME_BUFSIZE);
-
-  // Consume the argument.
-  --argc;
-  ++argv;
-
   if (*argv != NULL) {
     fprintf(stderr, "%s: Unexpected argument '%s'", *progName, *argv);
     displayUsageString();
     exit(EXIT_ERROR_ARGUMENT);
-  }
-
-  if (DEBUG) {
-    fprintf(stdout, "Username: %s\n", username);
   }
 
 }
@@ -424,5 +357,5 @@ void closeRemoteConnection() {
 
 void displayUsageString() {
   fputs("Usage:\n\
-    chat [--server] [--debug] [interface] port username\n", stdout);
+    server [--debug] [interface] port\n", stdout);
 }
