@@ -30,7 +30,10 @@ const int MAX_CLIENTS = 2;
 const int MESSAGE_BUFSIZE = 4096;
 
 // The file descriptors for client sockets.  0 indicates an empty slot.
+// This is a **SHARED RESOURCE*.  Its access is controlled by
+// clientSocketMutex.
 int *clientSockets;
+pthread_mutex_t clientSocketMutex = PTHREAD_MUTEX_INITIALIZER;
 
 char *SEPARATOR = ": ";
 size_t SEPARATOR_LENGTH = 2;
@@ -81,6 +84,9 @@ void parseArguments(
   remote client.  This is treated as a circular buffer.
 
   numClients are the maximum number of clients.
+
+  clientSockets is a **SHARED RESOURCE**.
+  clientSocketMutex is used to control access to it.
 */
 void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int numClients);
 
@@ -102,6 +108,9 @@ void displayUsageString();
   respectively.
 
   Returns a pointer if one is found, and NULL otherwise.
+
+  Assumes that there is **no simultaneous access** to the socket array.
+  Be sure to lock it beforehand!
 */
 int *getNextUnusedSocket(int *begin, int *end);
 
@@ -265,8 +274,16 @@ void * handleConnection(void *args) {
     fputs(messageBuf, stdout);
   }
 
+  // ****************************************************************
+  // CRITICAL REGION: MODIFYING CLIENT SOCKETS
+
   // Mark this socket as unusable
+  pthread_mutex_lock(clientSocketMutex);
   *socket = 0;
+  pthread_mutex_unlock(clientSocketMutex);
+
+  // CRITICAL REGION: MODIFYING CLIENT SOCKETS
+  // ****************************************************************
   pthread_exit(NULL);
 }
 
@@ -274,6 +291,10 @@ void * propagateMessages(void *args) {
   int *sockets = (int *)args;
   char message[] = "Server says hello!\n";
   while (true) {
+    // ****************************************************************
+    // CRITICAL REGION: READING CLIENT SOCKETS
+
+    pthread_mutex_lock(clientSocketMutex);
     for (size_t i = 0; i < MAX_CLIENTS; ++i) {
       if (sockets[i] != 0) {
         if (write(sockets[i], message, strlen(message)) < 0) {
@@ -281,6 +302,10 @@ void * propagateMessages(void *args) {
         }
       }
     }
+    pthread_mutex_unlock(clientSocketMutex);
+
+    // CRITICAL REGION: READING CLIENT SOCKETS
+    // ****************************************************************
     sleep(5);
   }
   pthread_exit(NULL);
@@ -333,6 +358,10 @@ void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int 
       fprintf(stderr, "Client connected to socket.\n");
     }
 
+    // ****************************************************************
+    // CRITICAL REGION: MODIFYING CLIENT SOCKETS
+
+    pthread_mutex_lock(clientSocketMutex);
     if ((nextSocket = getNextUnusedSocket(clientSockets, afterLastSocket)) == NULL) {
       // We couldn't find an open slot... reject this client.
       if (DEBUG) {
@@ -349,6 +378,10 @@ void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int 
         *nextSocket = acceptedSocket;
       }
     }
+    pthread_mutex_unlock(clientSocketMutex);
+
+    // END CRITICAL REGION: MODIFYING CLIENT SOCKETS
+    // ****************************************************************
 
   }
 
