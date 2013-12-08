@@ -10,15 +10,20 @@ flags = -Wall -std=c99
 client_target = client
 clientsources = src/client.c
 
+server_target = server
+serversources = src/server.c
 
-all: $(client_target)
+all: $(client_target) $(server_target)
 
 $(client_target):
 	@$(compiler) $(clientsources) $(flags) -o $(client_target)
+
+$(server_target):
+	@$(compiler) $(serversources) $(flags) -o $(server_target)
 
 debug: $(sources)
 	@$(compiler) $(sources) $(flags) -g -o $(client_target)
 
 clean:
-	@rm -f $(client_target)
+	@rm -f $(client_target) $(server_target)
 
