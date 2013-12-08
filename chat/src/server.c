@@ -154,7 +154,7 @@ int main(int argc, char **argv) {
   struct sockaddr_in socketAddress;
   socketAddress.sin_family = AF_INET;
 
-  clientSockets = calloc(sizeof(int), MAX_CLIENTS);
+  clientSockets = calloc(MAX_CLIENTS, sizeof(int));
   if (clientSockets == NULL) {
     perror(PROG_NAME);
     exit(EXIT_ERROR_MEMORY);
@@ -278,9 +278,9 @@ void * handleConnection(void *args) {
   // CRITICAL REGION: MODIFYING CLIENT SOCKETS
 
   // Mark this socket as unusable
-  pthread_mutex_lock(clientSocketMutex);
+  pthread_mutex_lock(&clientSocketMutex);
   *socket = 0;
-  pthread_mutex_unlock(clientSocketMutex);
+  pthread_mutex_unlock(&clientSocketMutex);
 
   // CRITICAL REGION: MODIFYING CLIENT SOCKETS
   // ****************************************************************
@@ -294,7 +294,7 @@ void * propagateMessages(void *args) {
     // ****************************************************************
     // CRITICAL REGION: READING CLIENT SOCKETS
 
-    pthread_mutex_lock(clientSocketMutex);
+    pthread_mutex_lock(&clientSocketMutex);
     for (size_t i = 0; i < MAX_CLIENTS; ++i) {
       if (sockets[i] != 0) {
         if (write(sockets[i], message, strlen(message)) < 0) {
@@ -302,7 +302,7 @@ void * propagateMessages(void *args) {
         }
       }
     }
-    pthread_mutex_unlock(clientSocketMutex);
+    pthread_mutex_unlock(&clientSocketMutex);
 
     // CRITICAL REGION: READING CLIENT SOCKETS
     // ****************************************************************
@@ -361,7 +361,7 @@ void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int 
     // ****************************************************************
     // CRITICAL REGION: MODIFYING CLIENT SOCKETS
 
-    pthread_mutex_lock(clientSocketMutex);
+    pthread_mutex_lock(&clientSocketMutex);
     if ((nextSocket = getNextUnusedSocket(clientSockets, afterLastSocket)) == NULL) {
       // We couldn't find an open slot... reject this client.
       if (DEBUG) {
@@ -378,7 +378,7 @@ void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int 
         *nextSocket = acceptedSocket;
       }
     }
-    pthread_mutex_unlock(clientSocketMutex);
+    pthread_mutex_unlock(&clientSocketMutex);
 
     // END CRITICAL REGION: MODIFYING CLIENT SOCKETS
     // ****************************************************************
