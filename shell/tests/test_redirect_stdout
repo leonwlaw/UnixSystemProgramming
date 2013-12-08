@@ -1,0 +1,2 @@
+cat ./tests/fruits > output_redirect_stdout
+cat output_redirect_stdout

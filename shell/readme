@@ -1,0 +1,45 @@
+Leonard Law #0428512
+Fall 2013 CS 239 Unix System Programming
+
+As of Supershell v3:
+What works:
+ - Backgrounding via &. Any arbitrary number of processes can be started
+   this way. A (fake) job ID is printed when this happens.
+ - Waiting for terminated background processes, with a message printed
+   to stdout.
+ - Globbing.
+ - SIGINT and SIGQUIT is sent to child properly if waiting on a child.
+   Otherwise, cause the prompt to reset. (I wanted to get SIGQUIT to not
+   cause fgets to return, but I kept getting compilation errors when
+   trying to compile, so I gave up on this approach. My research on the
+   internet didn't give me much, aside from that it might be a gcc bug,
+   but I spent a few hours too many investigating this)
+
+What doesn't work:
+ - SIGQUIT when running python in interactive mode will cause supershell
+   to be unresponsive (not sure why... signals are still being accepted)
+ - Piped output sometimes shows up after prompt. (Not sure what's
+   causing this, I've changed my wait procedure to wait for all
+   processes in the pipe when running non-backgrounded process groups)
+
+
+As of Supershell v2:
+What works:
+ - redirecting a file to stdin
+ - redirecting stdout to a file
+ - redirecting multiple files to stdin (last file will be used)
+ - redirecting stdout to multiple files directly from command line (last
+   file will be used)
+ - I/O piping
+ - I/O piping with redirection
+
+What doesn't work:
+ - redirecting stdout to multiple files, when input is redirected into
+   supershell (no files get output, period)
+
+Misc stuff that wasn't in the spec:
+ - supershell can take redirected input! (checks if fgets returns
+   anything)
+ - Automated(-ish) testing via 'make test'
+ - Hitting enter when nothing is typed do not cause errors to occur
+ - I/O piping between any number of commands
