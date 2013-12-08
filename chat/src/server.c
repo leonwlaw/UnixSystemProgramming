@@ -279,6 +279,14 @@ void * handleConnection(void *args) {
 
   // Mark this socket as unusable
   pthread_mutex_lock(&clientSocketMutex);
+  if (DEBUG) {
+    fprintf(stderr, "Closing socket. FD: %d\n", *socket);
+  }
+  // Shouldn't error out, but just in case...
+  // We shouldn't terminate in here because we STILL HAVE THE MUTEX!!
+  if (close(*socket) < 0) {
+    perror(PROG_NAME);
+  }
   *socket = 0;
   pthread_mutex_unlock(&clientSocketMutex);
 
