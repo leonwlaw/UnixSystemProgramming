@@ -237,12 +237,13 @@ void * handleConnection(void *args) {
   // This should be the same size as messageBuf's size.
   const size_t messageBufsize = 256;
 
-  int readResult;
-  while ((readResult = read(socket, messageBuf, messageBufsize)) > 0) {
-    if (readResult < 0) {
+  int chars;
+  while ((chars = read(socket, messageBuf, messageBufsize)) > 0) {
+    if (chars < 0) {
       perror(PROG_NAME);
       pthread_exit(NULL);
     }
+    messageBuf[chars] = '\0';
     fputs(messageBuf, stdout);
   }
   pthread_exit(NULL);
