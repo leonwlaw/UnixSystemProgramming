@@ -25,8 +25,11 @@ Purpose:
 char *PROG_NAME;
 bool DEBUG = false;
 
-const int MAX_CLIENTS = 1;
+const int MAX_CLIENTS = 2;
 const int MESSAGE_BUFSIZE = 4096;
+
+// The file descriptors for client sockets.  0 indicates an empty slot.
+int *clientSockets;
 
 char *SEPARATOR = ": ";
 size_t SEPARATOR_LENGTH = 2;
@@ -72,20 +75,12 @@ void parseArguments(
 
   socketAddress is the address where we should listen on.
 
-  remotesocket is the file descriptor used to communicate to/from the
-  remote client.
+  clientSockets are file descriptors used to communicate to/from the
+  remote client.  This is treated as a circular buffer.
+
+  numClients are the maximum number of clients.
 */
-void getClientConnection(struct sockaddr_in socketAddress, int *remotesocket);
-
-/*
-  Connect to the server.
-
-  socketAddress is the remote server to connect to.
-
-  remotesocket is the file descriptor used to communicate to/from the
-  server.
-*/
-void connectToServer(struct sockaddr_in *socketAddress, int *remotesocket);
+void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int numClients);
 
 /*
   Close any remote connections before exiting.
@@ -93,17 +88,20 @@ void connectToServer(struct sockaddr_in *socketAddress, int *remotesocket);
 void closeRemoteConnection();
 
 /*
-  Writes a message to the specified file.
-
-  Returns 0 on success, 1 on error.
-
-*/
-int writeToFile(int file, char *message, size_t chars);
-
-/*
   Prints out the usage string for this program.
 */
 void displayUsageString();
+
+
+/*
+  Sets current to be the next available socket position.
+
+  begin and end are the beginning and end positions of the socket array,
+  respectively.
+
+  Returns 0 if successful.  Returns -1 if none exist.
+*/
+int getNextUnusedSocket(int **current, int *begin, int *end);
 
 
 /* --------------------------------------------------------------------
@@ -119,63 +117,16 @@ int main(int argc, char **argv) {
   struct sockaddr_in socketAddress;
   socketAddress.sin_family = AF_INET;
 
-  parseArguments(argc, argv, &PROG_NAME, &socketAddress, &DEBUG);
-
-  getClientConnection(socketAddress, &remoteSocket);
-
-  // Read data from remote
-  int chars;
-  char *message = malloc(sizeof(char) * MESSAGE_BUFSIZE);
-  if (message == NULL) {
+  clientSockets = calloc(sizeof(int), MAX_CLIENTS);
+  if (clientSockets == NULL) {
     perror(PROG_NAME);
     exit(EXIT_ERROR_MEMORY);
   }
 
-  fd_set dataSourceFds;
-  int dataSourceFdsCount = remoteSocket + 1;
+  parseArguments(argc, argv, &PROG_NAME, &socketAddress, &DEBUG);
 
-  // The file descriptors that we need to look at.
-  int inputFds[] = {0, remoteSocket, FD_NULL};
-  int outputFds[] = {remoteSocket, 1, FD_NULL};
-  do {
-    FD_ZERO(&dataSourceFds);
-    FD_SET(0, &dataSourceFds);
-    FD_SET(remoteSocket, &dataSourceFds);
-
-    int selected = select(dataSourceFdsCount, &dataSourceFds, NULL, NULL, NULL);
-    if (selected < 0) {
-      perror(PROG_NAME);
-      exit(EXIT_ERROR_IO);
-    }
-
-    if (DEBUG) {
-      fprintf(stdout, "Received input from %d source(s).\n", selected);
-    }
-
-    for (int *in = inputFds, *out = outputFds;
-      *in != -1;
-      ++in, ++out) {
-
-      if (FD_ISSET(*in, &dataSourceFds)) {
-        chars = read(*in, message, MESSAGE_BUFSIZE);
-        message[chars] = '\0';
-        if (DEBUG) {
-          fprintf(stderr, "Outgoing message: '%s'\n", message);
-        }
-
-        if (writeToFile(*out, message, chars) != 0) {
-          perror(PROG_NAME);
-          exit(EXIT_ERROR_IO);
-        }
-      }
-    }
-  } while (chars > 0);
-
-  if (DEBUG) {
-    fputs("Remote end closed.\n", stdout);
-  }
-
-  free(message);
+  listenForClients(socketAddress, clientSockets, MAX_CLIENTS);
+  free(clientSockets);
   return 0;
 }
 
@@ -265,7 +216,7 @@ void parseArguments(
 }
 
 
-void getClientConnection(struct sockaddr_in socketAddress, int *remotesocket) {
+void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int numClients) {
   // Used only if we're in server mode. This is where we'll listen for
   // incoming connections.
   if (DEBUG) {
@@ -296,13 +247,31 @@ void getClientConnection(struct sockaddr_in socketAddress, int *remotesocket) {
   struct sockaddr remoteAddress;
   socklen_t remoteAddrLen;
 
-  if ((*remotesocket = accept(serversocket, &remoteAddress, &remoteAddrLen)) == -1) {
-    perror(PROG_NAME);
-    exit(EXIT_ERROR_SOCKET);
-  }
+  int *nextSocket = clientSockets;
+  int *afterLastSocket = clientSockets + MAX_CLIENTS;
 
-  if (DEBUG) {
-    fputs("Connection complete.\n", stdout);
+
+  while (true) {
+    if (nextSocket < afterLastSocket && *nextSocket == 0) {
+      if ((*nextSocket = accept(serversocket, &remoteAddress, &remoteAddrLen)) == -1) {
+        perror(PROG_NAME);
+        exit(EXIT_ERROR_SOCKET);
+      }
+      if (DEBUG) {
+        fprintf(stderr, "Client connected to socket.\n");
+      }
+    }
+
+    if ((getNextUnusedSocket(&nextSocket, clientSockets, afterLastSocket) != 0) && DEBUG) {
+      fprintf(stderr, "No more free slots.\n");
+      // We should perhaps wait until a port reopens instead of doing this...
+      // Remove this when we're ready.
+      fprintf(stderr, "Pausing forever until we actually find an unused socket.\n");
+      while (true) {
+        sleep(1);
+      }
+      break;
+    }
   }
 
   // Got a connection, exit.
@@ -358,4 +327,12 @@ void closeRemoteConnection() {
 void displayUsageString() {
   fputs("Usage:\n\
     server [--debug] [interface] port\n", stdout);
+}
+
+int getNextUnusedSocket(int **current, int *begin, int *end) {
+  ++(*current);
+  if (*current == end) {
+    return -1;
+  }
+  return 0;
 }
