@@ -21,6 +21,7 @@ Purpose:
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 char *PROG_NAME;
 bool DEBUG = false;
@@ -103,6 +104,18 @@ void displayUsageString();
 */
 int getNextUnusedSocket(int **current, int *begin, int *end);
 
+/*
+  Handles a single client connection.
+
+  *args should be a int *fd
+
+  fd is a file descriptor used to communicate with a chat client.
+
+  It will messages that the client connection sends to us into the
+  circular queue g_messages.
+
+*/
+void * handleConnection(void *args);
 
 /* --------------------------------------------------------------------
 Main
@@ -215,6 +228,26 @@ void parseArguments(
 
 }
 
+void * handleConnection(void *args) {
+  // The file descriptor of the remote socket.
+  int socket = *(int *)(args);
+  fprintf(stdout, "Listening on FD: %d\n", socket);
+  // This is where we will store the remote client's sent message.
+  char messageBuf[256];
+  // This should be the same size as messageBuf's size.
+  const size_t messageBufsize = 256;
+
+  int readResult;
+  while ((readResult = read(socket, messageBuf, messageBufsize)) > 0) {
+    if (readResult < 0) {
+      perror(PROG_NAME);
+      pthread_exit(NULL);
+    }
+    fputs(messageBuf, stdout);
+  }
+  pthread_exit(NULL);
+}
+
 
 void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int numClients) {
   // Used only if we're in server mode. This is where we'll listen for
@@ -243,13 +276,14 @@ void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int 
     exit(EXIT_ERROR_SOCKET);
   }
 
-  fputs("Waiting for connection from a host...\n", stdout);
   struct sockaddr remoteAddress;
-  socklen_t remoteAddrLen;
+  socklen_t remoteAddrLen = sizeof(remoteAddress);
 
   int *nextSocket = clientSockets;
   int *afterLastSocket = clientSockets + MAX_CLIENTS;
 
+  pthread_t threadId;
+  int pthreadErrno;
 
   while (true) {
     if (nextSocket < afterLastSocket && *nextSocket == 0) {
@@ -259,6 +293,9 @@ void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int 
       }
       if (DEBUG) {
         fprintf(stderr, "Client connected to socket.\n");
+      }
+      if ((pthreadErrno = pthread_create(&threadId, NULL, handleConnection, (void *)(nextSocket))) != 0) {
+        fputs("Could not create new thread to handle request.", stderr);
       }
     }
 
