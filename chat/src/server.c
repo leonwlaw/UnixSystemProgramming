@@ -27,7 +27,20 @@ char *PROG_NAME;
 bool DEBUG = false;
 
 const int MAX_CLIENTS = 2;
-const int MESSAGE_BUFSIZE = 4096;
+const int MAX_NUM_MESSAGES = 4096;
+const int MAX_MESSAGE_LENGTH = 1024;
+
+struct message_queue_t {
+  // The array of all messages.  This list is null terminated.
+  char **messages;
+  char **nextMessageSlot;
+  char **lastSentMessage;
+  size_t maxMessageSize;
+  size_t maxNumMessages;
+
+  // Controls simultaneous access to messages
+  pthread_mutex_t lock;
+};
 
 // The file descriptors for client sockets.  0 indicates an empty slot.
 // This is a **SHARED RESOURCE*.  Its access is controlled by
@@ -50,6 +63,7 @@ enum EXIT_T {
   EXIT_ERROR_MEMORY,
   EXIT_ERROR_IO,
   EXIT_ERROR_THREAD,
+  EXIT_ERROR_LOCK,
 };
 
 // The socket to the remote server/client.
@@ -141,6 +155,26 @@ void * propagateMessages(void *args);
 */
 void startMessagePropagationThread(int *clientSockets);
 
+/*
+  Initializes a message queue.
+
+  bufferSize controls how many messages will fit into the queue at any
+  given time.
+
+  Memory is allocated to hold the messages.
+*/
+void message_queue_init(struct message_queue_t *messageQueue, size_t bufferSize, size_t messageLength);
+
+/*
+  Cleans up a message queue.
+
+  Frees up the internal memory buffer.
+
+  You should make sure that no one is using it anymore before cleaning
+  up.
+*/
+void message_queue_cleanup(struct message_queue_t *messageQueue);
+
 /* --------------------------------------------------------------------
 Main
 -------------------------------------------------------------------- */
@@ -154,6 +188,9 @@ int main(int argc, char **argv) {
   struct sockaddr_in socketAddress;
   socketAddress.sin_family = AF_INET;
 
+  struct message_queue_t messageQueue;
+  message_queue_init(&messageQueue, MAX_NUM_MESSAGES, MAX_MESSAGE_LENGTH);
+
   clientSockets = calloc(MAX_CLIENTS, sizeof(int));
   if (clientSockets == NULL) {
     perror(PROG_NAME);
@@ -164,6 +201,8 @@ int main(int argc, char **argv) {
   startMessagePropagationThread(clientSockets);
 
   listenForClients(socketAddress, clientSockets, MAX_CLIENTS);
+
+  message_queue_cleanup(&messageQueue);
   free(clientSockets);
   return 0;
 }
@@ -466,4 +505,46 @@ void startMessagePropagationThread(int *clientSockets) {
     perror("PROG_NAME");
     exit(EXIT_ERROR_THREAD);
   }
+}
+
+
+void message_queue_init(struct message_queue_t *messageQueue, size_t bufferSize, size_t messageSize) {
+  if (pthread_mutex_init(&messageQueue->lock, NULL) != 0) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_LOCK);
+  }
+
+  messageQueue->messages = calloc(bufferSize, sizeof(char *));
+  if (messageQueue->messages == NULL) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_MEMORY);
+  }
+  for (size_t i = 0; i < bufferSize - 1; ++i) {
+    char *message = calloc(messageSize, sizeof(char));
+    if (message == NULL) {
+      perror(PROG_NAME);
+      exit(EXIT_ERROR_MEMORY);
+    }
+    messageQueue->messages[i] = message;
+  }
+  // Make it easy for us to figure out that we hit the end of the queue.
+  messageQueue->messages[bufferSize - 1] = NULL;
+
+  messageQueue->nextMessageSlot = messageQueue->messages;
+  messageQueue->lastSentMessage = NULL;
+
+  messageQueue->maxMessageSize = messageSize;
+  messageQueue->maxNumMessages = bufferSize;
+}
+
+void message_queue_cleanup(struct message_queue_t *messageQueue) {
+  if (pthread_mutex_destroy(&messageQueue->lock) != 0) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_LOCK);
+  }
+  // Free up all the individual messages first...
+  for (; *messageQueue->messages != NULL; ++messageQueue->messages) {
+    free(*messageQueue->messages);
+  }
+  free(messageQueue->messages);
 }
