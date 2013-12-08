@@ -5,21 +5,20 @@
 #   Class project for CS 239.
 
 compiler = gcc
-sources = src/main.c
 flags = -Wall -std=c99
-output = chat 
 
-.PHONY : clean
+client_target = client
+clientsources = src/client.c
 
 
-all: default
+all: $(client_target)
 
-default: $(sources)
-	@$(compiler) $(sources) $(flags) -o $(output)
+$(client_target):
+	@$(compiler) $(clientsources) $(flags) -o $(client_target)
 
 debug: $(sources)
-	@$(compiler) $(sources) $(flags) -g -o $(output)
+	@$(compiler) $(sources) $(flags) -g -o $(client_target)
 
 clean:
-	@rm -f $(output)
+	@rm -f $(client_target)
 
