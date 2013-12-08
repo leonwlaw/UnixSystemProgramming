@@ -5,7 +5,7 @@
 #   Class project for CS 239.
 
 compiler = gcc
-flags = -Wall -std=c99 -g
+flags = -Wall -std=c99 -g -lpthread
 
 client_target = client
 clientsources = src/client.c
@@ -15,10 +15,10 @@ serversources = src/server.c
 
 all: $(client_target) $(server_target)
 
-$(client_target):
+$(client_target): $(clientsources)
 	@$(compiler) $(clientsources) $(flags) -o $(client_target)
 
-$(server_target):
+$(server_target): $(serversources)
 	@$(compiler) $(serversources) $(flags) -o $(server_target)
 
 clean:
