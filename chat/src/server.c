@@ -96,14 +96,14 @@ void displayUsageString();
 
 
 /*
-  Sets current to be the next available socket position.
+  Returns the next available socket position.
 
   begin and end are the beginning and end positions of the socket array,
   respectively.
 
-  Returns 0 if successful.  Returns -1 if none exist.
+  Returns a pointer if one is found, and NULL otherwise.
 */
-int getNextUnusedSocket(int **current, int *begin, int *end);
+int *getNextUnusedSocket(int *begin, int *end);
 
 /*
   Handles a single client connection.
@@ -324,29 +324,32 @@ void listenForClients(struct sockaddr_in socketAddress, int *clientSockets, int 
   int pthreadErrno;
 
   while (true) {
-    if (nextSocket < afterLastSocket && *nextSocket == 0) {
-      if ((*nextSocket = accept(serversocket, &remoteAddress, &remoteAddrLen)) == -1) {
-        perror(PROG_NAME);
-        exit(EXIT_ERROR_SOCKET);
-      }
+    int acceptedSocket = accept(serversocket, &remoteAddress, &remoteAddrLen);
+    if (acceptedSocket < 0) {
+      perror(PROG_NAME);
+      exit(EXIT_ERROR_SOCKET);
+    }
+    if (DEBUG) {
+      fprintf(stderr, "Client connected to socket.\n");
+    }
+
+    if ((nextSocket = getNextUnusedSocket(clientSockets, afterLastSocket)) == NULL) {
+      // We couldn't find an open slot... reject this client.
       if (DEBUG) {
-        fprintf(stderr, "Client connected to socket.\n");
+        fprintf(stderr, "No more free slots.\n");
       }
+      close(acceptedSocket);
+    } else {
+      // An open socket was found!
       if ((pthreadErrno = pthread_create(&threadId, NULL, handleConnection, (void *)(nextSocket))) != 0) {
         fputs("Could not create new thread to handle request.", stderr);
+      } else {
+        // Everything is successful, let's add it to the active clients
+        // list and wait for the next client.
+        *nextSocket = acceptedSocket;
       }
     }
 
-    if ((getNextUnusedSocket(&nextSocket, clientSockets, afterLastSocket) != 0) && DEBUG) {
-      fprintf(stderr, "No more free slots.\n");
-      // We should perhaps wait until a port reopens instead of doing this...
-      // Remove this when we're ready.
-      fprintf(stderr, "Pausing forever until we actually find an unused socket.\n");
-      while (true) {
-        sleep(1);
-      }
-      break;
-    }
   }
 
   // Got a connection, exit.
@@ -404,12 +407,13 @@ void displayUsageString() {
     server [--debug] [interface] port\n", stdout);
 }
 
-int getNextUnusedSocket(int **current, int *begin, int *end) {
-  ++(*current);
-  if (*current == end) {
-    return -1;
+int *getNextUnusedSocket(int *begin, int *end) {
+  for (; begin != end; ++begin) {
+    if (*begin == 0) {
+      return begin;
+    }
   }
-  return 0;
+  return NULL;
 }
 
 
