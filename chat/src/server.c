@@ -26,8 +26,8 @@ Purpose:
 char *PROG_NAME;
 bool DEBUG = false;
 
-const int MAX_CLIENTS = 2;
-const int MAX_NUM_MESSAGES = 10;
+const int MAX_CLIENTS = 32;
+const int MAX_NUM_MESSAGES = 256;
 const int MAX_MESSAGE_LENGTH = 1024;
 
 struct message_queue_t {

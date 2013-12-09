@@ -3,12 +3,12 @@ Programmer: Leonard Law
 Purpose:
   Class project for CS 239.
 
-  This is a simple 1:1 chat server.  Both server and client execute
-  this program.  The server will default to client mode if the mode is
-  not specified.
+  This is a simple chat client.  This can be also run in server mode, if
+  you only wish to perform a 1:1 chat.  This program will default to
+  client mode if the mode is not specified.
 
   Usage:
-    chat [--server] [--debug] [interface] port username
+    client [--server] [--debug] [interface] port username
 
 */
 
@@ -426,5 +426,5 @@ void closeRemoteConnection() {
 
 void displayUsageString() {
   fputs("Usage:\n\
-    chat [--server] [--debug] [interface] port username\n", stdout);
+    client [--server] [--debug] [interface] port username\n", stdout);
 }
