@@ -5,7 +5,7 @@
 #   Class project for CS 239.
 
 compiler = gcc
-flags = -Wall -std=c99 -g -lpthread
+flags = -Wall -std=c99 -g -lpthread -D_GNU_SOURCE
 
 client_target = client
 clientsources = src/client.c

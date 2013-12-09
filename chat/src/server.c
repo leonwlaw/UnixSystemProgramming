@@ -27,14 +27,14 @@ char *PROG_NAME;
 bool DEBUG = false;
 
 const int MAX_CLIENTS = 2;
-const int MAX_NUM_MESSAGES = 4096;
+const int MAX_NUM_MESSAGES = 10;
 const int MAX_MESSAGE_LENGTH = 1024;
 
 struct message_queue_t {
   // The array of all messages.  This list is null terminated.
   char **messages;
   char **nextMessageSlot;
-  char **lastSentMessage;
+  char **nextMessageToRead;
   size_t maxMessageSize;
   size_t maxNumMessages;
 
@@ -68,6 +68,8 @@ enum EXIT_T {
 
 // The socket to the remote server/client.
 static int remoteSocket;
+
+static struct message_queue_t g_messageQueue;
 
 /* --------------------------------------------------------------------
 Function declarations
@@ -175,6 +177,21 @@ void message_queue_init(struct message_queue_t *messageQueue, size_t bufferSize,
 */
 void message_queue_cleanup(struct message_queue_t *messageQueue);
 
+/*
+  Puts a message into the message queue.
+
+  May block if the queue is currently full.
+*/
+void message_queue_put(struct message_queue_t *messageQueue, char *message);
+
+/*
+  Gets a message from the message queue.
+
+  May block if the queue is currently empty.
+*/
+void message_queue_get(struct message_queue_t *messageQueue, char *message);
+
+
 /* --------------------------------------------------------------------
 Main
 -------------------------------------------------------------------- */
@@ -188,8 +205,6 @@ int main(int argc, char **argv) {
   struct sockaddr_in socketAddress;
   socketAddress.sin_family = AF_INET;
 
-  struct message_queue_t messageQueue;
-  message_queue_init(&messageQueue, MAX_NUM_MESSAGES, MAX_MESSAGE_LENGTH);
 
   clientSockets = calloc(MAX_CLIENTS, sizeof(int));
   if (clientSockets == NULL) {
@@ -198,11 +213,14 @@ int main(int argc, char **argv) {
   }
 
   parseArguments(argc, argv, &PROG_NAME, &socketAddress, &DEBUG);
+
+  message_queue_init(&g_messageQueue, MAX_NUM_MESSAGES, MAX_MESSAGE_LENGTH);
+
   startMessagePropagationThread(clientSockets);
 
   listenForClients(socketAddress, clientSockets, MAX_CLIENTS);
 
-  message_queue_cleanup(&messageQueue);
+  message_queue_cleanup(&g_messageQueue);
   free(clientSockets);
   return 0;
 }
@@ -310,7 +328,10 @@ void * handleConnection(void *args) {
       pthread_exit(NULL);
     }
     messageBuf[chars] = '\0';
-    fputs(messageBuf, stdout);
+    if (DEBUG) {
+      fprintf(stderr, "Socket #%d said: '%s'\n", *socket, messageBuf);
+    }
+    message_queue_put(&g_messageQueue, messageBuf);
   }
 
   // ****************************************************************
@@ -336,8 +357,14 @@ void * handleConnection(void *args) {
 
 void * propagateMessages(void *args) {
   int *sockets = (int *)args;
-  char message[] = "Server says hello!\n";
+  char *message = calloc(MAX_MESSAGE_LENGTH, sizeof(char));
+  if (message == NULL) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_MEMORY);
+  }
+
   while (true) {
+    message_queue_get(&g_messageQueue, message);
     // ****************************************************************
     // CRITICAL REGION: READING CLIENT SOCKETS
 
@@ -353,8 +380,8 @@ void * propagateMessages(void *args) {
 
     // CRITICAL REGION: READING CLIENT SOCKETS
     // ****************************************************************
-    sleep(5);
   }
+  free(message);
   pthread_exit(NULL);
 }
 
@@ -501,6 +528,9 @@ void startMessagePropagationThread(int *clientSockets) {
   pthread_t threadId;
   int pthreadErrno;
 
+  if (DEBUG) {
+    fprintf(stderr, "Starting message propagation thread.\n");
+  }
   if ((pthreadErrno = pthread_create(&threadId, NULL, propagateMessages, (void *)(clientSockets))) != 0) {
     perror("PROG_NAME");
     exit(EXIT_ERROR_THREAD);
@@ -527,14 +557,15 @@ void message_queue_init(struct message_queue_t *messageQueue, size_t bufferSize,
     }
     messageQueue->messages[i] = message;
   }
+  messageQueue->nextMessageSlot = messageQueue->messages;
+  messageQueue->nextMessageToRead = messageQueue->messages;
+
   // Make it easy for us to figure out that we hit the end of the queue.
   messageQueue->messages[bufferSize - 1] = NULL;
 
-  messageQueue->nextMessageSlot = messageQueue->messages;
-  messageQueue->lastSentMessage = NULL;
-
   messageQueue->maxMessageSize = messageSize;
   messageQueue->maxNumMessages = bufferSize;
+
 }
 
 void message_queue_cleanup(struct message_queue_t *messageQueue) {
@@ -547,4 +578,52 @@ void message_queue_cleanup(struct message_queue_t *messageQueue) {
     free(*messageQueue->messages);
   }
   free(messageQueue->messages);
+}
+
+void message_queue_put(struct message_queue_t *messageQueue, char *message) {
+  pthread_mutex_lock(&messageQueue->lock);
+
+  // Is there space to write to?
+  while (messageQueue->nextMessageSlot + 1 == messageQueue->nextMessageToRead) {
+    pthread_mutex_unlock(&messageQueue->lock);
+    pthread_yield();
+
+    // Try again!
+    pthread_mutex_lock(&messageQueue->lock);
+  }
+  if (!strncpy(*messageQueue->nextMessageSlot, message,
+    messageQueue->maxMessageSize)) {
+    perror(PROG_NAME);
+  }
+  ++messageQueue->nextMessageSlot;
+  if (*messageQueue->nextMessageSlot == NULL) {
+    messageQueue->nextMessageSlot = messageQueue->messages;
+  }
+  pthread_mutex_unlock(&messageQueue->lock);
+}
+
+void message_queue_get(struct message_queue_t *messageQueue, char *message) {
+  pthread_mutex_lock(&messageQueue->lock);
+
+  // Is there anything to get?
+  while (messageQueue->nextMessageToRead == messageQueue->nextMessageSlot) {
+    pthread_mutex_unlock(&messageQueue->lock);
+    pthread_yield();
+
+    // Try again!
+    pthread_mutex_lock(&messageQueue->lock);
+  }
+
+  if (!strncpy(message, *messageQueue->nextMessageToRead,
+    messageQueue->maxMessageSize)) {
+    perror(PROG_NAME);
+  }
+
+  // Advance to the next message
+  // If we're at the last index, go back to the front of the queue.
+  messageQueue->nextMessageToRead =
+    (*(messageQueue->nextMessageToRead + 1) == NULL) ?
+    messageQueue->messages : messageQueue->nextMessageToRead + 1;
+
+  pthread_mutex_unlock(&messageQueue->lock);
 }
