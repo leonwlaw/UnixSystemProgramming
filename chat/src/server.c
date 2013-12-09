@@ -33,8 +33,13 @@ const int MAX_MESSAGE_LENGTH = 1024;
 struct message_queue_t {
   // The array of all messages.  This list is null terminated.
   char **messages;
-  char **nextMessageSlot;
-  char **nextMessageToRead;
+  int *senders;
+
+  // Where the next push will be.
+  size_t pushOffset;
+  // Where the next pop will be.
+  size_t popOffset;
+
   size_t maxMessageSize;
   size_t maxNumMessages;
 
@@ -180,16 +185,19 @@ void message_queue_cleanup(struct message_queue_t *messageQueue);
 /*
   Puts a message into the message queue.
 
+  message is the message to store.
+  sender is a unique ID to identify sender is associated with the message.
+
   May block if the queue is currently full.
 */
-void message_queue_put(struct message_queue_t *messageQueue, char *message);
+void message_queue_put(struct message_queue_t *messageQueue, char *message, int sender);
 
 /*
-  Gets a message from the message queue.
+  Gets a message and its sender from the message queue.
 
   May block if the queue is currently empty.
 */
-void message_queue_get(struct message_queue_t *messageQueue, char *message);
+void message_queue_get(struct message_queue_t *messageQueue, char *message, int *sender);
 
 /*
   Terminates a string at the first trailing whitespace character.
@@ -335,7 +343,7 @@ void * handleConnection(void *args) {
     if (DEBUG) {
       fprintf(stderr, "Socket #%d said: '%s'\n", *socket, messageBuf);
     }
-    message_queue_put(&g_messageQueue, messageBuf);
+    message_queue_put(&g_messageQueue, messageBuf, *socket);
   }
 
   // ****************************************************************
@@ -361,6 +369,8 @@ void * handleConnection(void *args) {
 
 void * propagateMessages(void *args) {
   int *sockets = (int *)args;
+  int originalSender;
+
   char *message = calloc(MAX_MESSAGE_LENGTH, sizeof(char));
   if (message == NULL) {
     perror(PROG_NAME);
@@ -368,7 +378,7 @@ void * propagateMessages(void *args) {
   }
 
   while (true) {
-    message_queue_get(&g_messageQueue, message);
+    message_queue_get(&g_messageQueue, message, &originalSender);
     nullifyTrailingWhitespace(message);
     // Print out locally so that server can see what is going on.
     // Maybe can be used to ban foul-mouthed people? :)
@@ -379,7 +389,9 @@ void * propagateMessages(void *args) {
 
     pthread_mutex_lock(&clientSocketMutex);
     for (size_t i = 0; i < MAX_CLIENTS; ++i) {
-      if (sockets[i] != 0) {
+      // Don't send a message back to the same client we received it
+      // from
+      if (sockets[i] != 0 && sockets[i] != originalSender) {
         if (write(sockets[i], message, strlen(message)) < 0) {
           perror(PROG_NAME);
         }
@@ -558,6 +570,13 @@ void message_queue_init(struct message_queue_t *messageQueue, size_t bufferSize,
     perror(PROG_NAME);
     exit(EXIT_ERROR_MEMORY);
   }
+
+  messageQueue->senders = calloc(bufferSize, sizeof(int));
+  if (messageQueue->senders == NULL) {
+    perror(PROG_NAME);
+    exit(EXIT_ERROR_MEMORY);
+  }
+
   for (size_t i = 0; i < bufferSize - 1; ++i) {
     char *message = calloc(messageSize, sizeof(char));
     if (message == NULL) {
@@ -566,11 +585,8 @@ void message_queue_init(struct message_queue_t *messageQueue, size_t bufferSize,
     }
     messageQueue->messages[i] = message;
   }
-  messageQueue->nextMessageSlot = messageQueue->messages;
-  messageQueue->nextMessageToRead = messageQueue->messages;
-
-  // Make it easy for us to figure out that we hit the end of the queue.
-  messageQueue->messages[bufferSize - 1] = NULL;
+  messageQueue->pushOffset = 0;
+  messageQueue->popOffset = 0;
 
   messageQueue->maxMessageSize = messageSize;
   messageQueue->maxNumMessages = bufferSize;
@@ -587,35 +603,37 @@ void message_queue_cleanup(struct message_queue_t *messageQueue) {
     free(*messageQueue->messages);
   }
   free(messageQueue->messages);
+  free(messageQueue->senders);
 }
 
-void message_queue_put(struct message_queue_t *messageQueue, char *message) {
+void message_queue_put(struct message_queue_t *messageQueue, char *message, int sender) {
   pthread_mutex_lock(&messageQueue->lock);
 
   // Is there space to write to?
-  while (messageQueue->nextMessageSlot + 1 == messageQueue->nextMessageToRead) {
+  while (messageQueue->pushOffset + 1 == messageQueue->popOffset) {
+  // while (messageQueue->nextMessageSlot + 1 == messageQueue->nextMessageToRead) {
     pthread_mutex_unlock(&messageQueue->lock);
     pthread_yield();
 
     // Try again!
     pthread_mutex_lock(&messageQueue->lock);
   }
-  if (!strncpy(*messageQueue->nextMessageSlot, message,
+  if (!strncpy(messageQueue->messages[messageQueue->pushOffset], message,
     messageQueue->maxMessageSize)) {
     perror(PROG_NAME);
   }
-  ++messageQueue->nextMessageSlot;
-  if (*messageQueue->nextMessageSlot == NULL) {
-    messageQueue->nextMessageSlot = messageQueue->messages;
-  }
+  messageQueue->senders[messageQueue->pushOffset] = sender;
+  // Go back to the front if we hit the end
+  messageQueue->pushOffset =
+    (messageQueue->pushOffset + 1) % messageQueue->maxNumMessages;
   pthread_mutex_unlock(&messageQueue->lock);
 }
 
-void message_queue_get(struct message_queue_t *messageQueue, char *message) {
+void message_queue_get(struct message_queue_t *messageQueue, char *message, int *sender) {
   pthread_mutex_lock(&messageQueue->lock);
 
   // Is there anything to get?
-  while (messageQueue->nextMessageToRead == messageQueue->nextMessageSlot) {
+  while (messageQueue->popOffset == messageQueue->pushOffset) {
     pthread_mutex_unlock(&messageQueue->lock);
     pthread_yield();
 
@@ -623,16 +641,16 @@ void message_queue_get(struct message_queue_t *messageQueue, char *message) {
     pthread_mutex_lock(&messageQueue->lock);
   }
 
-  if (!strncpy(message, *messageQueue->nextMessageToRead,
+  if (!strncpy(message, messageQueue->messages[messageQueue->popOffset],
     messageQueue->maxMessageSize)) {
     perror(PROG_NAME);
   }
 
+  *sender = messageQueue->senders[messageQueue->popOffset];
+
   // Advance to the next message
   // If we're at the last index, go back to the front of the queue.
-  messageQueue->nextMessageToRead =
-    (*(messageQueue->nextMessageToRead + 1) == NULL) ?
-    messageQueue->messages : messageQueue->nextMessageToRead + 1;
+  messageQueue->popOffset = (messageQueue->popOffset + 1) % messageQueue->maxNumMessages;
 
   pthread_mutex_unlock(&messageQueue->lock);
 }
