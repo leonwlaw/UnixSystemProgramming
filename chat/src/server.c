@@ -191,6 +191,10 @@ void message_queue_put(struct message_queue_t *messageQueue, char *message);
 */
 void message_queue_get(struct message_queue_t *messageQueue, char *message);
 
+/*
+  Terminates a string at the first trailing whitespace character.
+*/
+void nullifyTrailingWhitespace(char *string);
 
 /* --------------------------------------------------------------------
 Main
@@ -365,6 +369,11 @@ void * propagateMessages(void *args) {
 
   while (true) {
     message_queue_get(&g_messageQueue, message);
+    nullifyTrailingWhitespace(message);
+    // Print out locally so that server can see what is going on.
+    // Maybe can be used to ban foul-mouthed people? :)
+    fprintf(stdout, "%s\n", message);
+
     // ****************************************************************
     // CRITICAL REGION: READING CLIENT SOCKETS
 
@@ -626,4 +635,20 @@ void message_queue_get(struct message_queue_t *messageQueue, char *message) {
     messageQueue->messages : messageQueue->nextMessageToRead + 1;
 
   pthread_mutex_unlock(&messageQueue->lock);
+}
+
+void nullifyTrailingWhitespace(char *string) {
+  char *lastValidChar = string;
+  for (; *string != '\0'; ++string)
+  {
+    if (*string != ' ' && *string != '\t' && *string != '\n')
+    {
+      lastValidChar = string;
+    }
+  }
+
+  for (++lastValidChar; *lastValidChar != '\0'; ++lastValidChar)
+  {
+    *lastValidChar = '\0';
+  }
 }

@@ -213,6 +213,7 @@ int main(int argc, char **argv) {
             perror(PROG_NAME);
             exit(EXIT_ERROR_IO);
           }
+          fputs("\n", stdout);
         }
       }
     }
