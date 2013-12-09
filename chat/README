@@ -12,3 +12,10 @@ Optionally, the client may also be used in server mode, only for 1:1 chats:
 
  * Interface defaults to any interface (INADDR_ANY) if not specified.
  * --debug and --server can be in any order.
+
+Changes to client (from v1):
+ * Client will print out a newline after printing out a received message.
+   This is because the chat server will send a whitespace-stripped version
+   of the string clients send to it, which includes the trailing '\n'
+   character.
+
